@@ -9,7 +9,7 @@ Live at [api.figueroa-sanchez.com](https://api.figueroa-sanchez.com).
 - Vitest for unit and e2e tests, oxlint and Prettier for code quality
 - pnpm as package manager
 
-The frontend lives in the sibling [`portfolio`](../portfolio) project (Angular 22).
+The frontend lives in the sibling [`web`](../web) project (Angular 22).
 
 ## Getting started
 ```bash
