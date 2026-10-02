@@ -7,7 +7,7 @@ import {
   MaxLength,
 } from 'class-validator';
 
-// Same pattern the web's serverless function used.
+// Same pattern the web's contact form used before moving to the API.
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const trim = ({ value }: TransformFnParams): unknown =>

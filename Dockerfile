@@ -2,17 +2,19 @@
 FROM --platform=$BUILDPLATFORM node:26-alpine AS build
 RUN npm install -g pnpm@12.6.0
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
-COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY tsconfig.json tsconfig.build.json nest-cli.json prisma.config.ts ./
+COPY prisma ./prisma
 COPY src ./src
+# `pnpm build` runs `prisma generate`, which needs the schema but no database.
 RUN pnpm build
 
 # Stage 2: production dependencies for the target platform.
 FROM node:26-alpine AS deps
 RUN npm install -g pnpm@12.6.0
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --prod
 
 # Stage 3: unprivileged runtime.
