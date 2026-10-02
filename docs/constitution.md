@@ -6,7 +6,7 @@
 4. Every controller and service has a `*.spec.ts`; every endpoint has an e2e test in `test/`.
 5. `pnpm lint`, `pnpm test`, `pnpm test:e2e` and `pnpm build` pass before each commit.
 6. Code is Prettier-formatted with no oxlint errors (including floating promises).
-7. Secrets only in environment variables; never in the repo or in responses/logs.
+7. Application secrets live in the database `property` table; only the database connection URL lives in an environment variable; never in the repo, responses or logs.
 8. CORS allows only the portfolio's origins; errors never leak stack traces to clients.
 9. Database schema changes only through versioned migrations.
 10. Code, docs and commits in English; commits follow Conventional Commits.

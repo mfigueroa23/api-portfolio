@@ -1,8 +1,18 @@
+import { existsSync } from 'node:fs';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module.js';
+import { AppModule } from './app/app.module.js';
+import { setupApp } from './app/setup-app.js';
+
+// Locally DATABASE_URL and PORT come from .env; in Docker and Kubernetes they
+// are already in the environment and the file does not exist.
+if (existsSync('.env')) {
+  process.loadEnvFile();
+}
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // JSON is parsed by JsonBodyMiddleware, after the rate-limit middlewares.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  setupApp(app);
   await app.listen(process.env.PORT ?? 3000);
 }
 await bootstrap();

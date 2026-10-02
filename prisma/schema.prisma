@@ -1,0 +1,155 @@
+// The client is generated into src/generated/prisma (gitignored) and talks to
+// PostgreSQL through the @prisma/adapter-pg driver adapter.
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  runtime             = "nodejs"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Application secrets (brevo_api_key, jwt_secret), inserted by the owner with SQL.
+model Property {
+  key       String   @id @db.VarChar(100)
+  value     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("property")
+}
+
+// Single administrator account; the migration adds a singleton index so a
+// second row cannot be inserted.
+model AdminUser {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique @db.VarChar(100)
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("admin_user")
+}
+
+// One row per counted request; rows older than the window are deleted on the
+// next hit from the same bucket and IP.
+model RateLimitHit {
+  id        BigInt   @id @default(autoincrement())
+  bucket    String   @db.VarChar(32)
+  ip        String   @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([bucket, ip, createdAt])
+  @@map("rate_limit_hit")
+}
+
+model Experience {
+  id           Int      @id @default(autoincrement())
+  position     Int
+  period       String   @db.VarChar(100)
+  role         String   @db.VarChar(200)
+  company      String   @db.VarChar(200)
+  description  String
+  technologies String[]
+  current      Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([position])
+  @@map("experience")
+}
+
+model Project {
+  id          Int      @id @default(autoincrement())
+  position    Int
+  title       String   @db.VarChar(200)
+  description String
+  image       String   @db.VarChar(500)
+  tags        String[]
+  link        String   @db.VarChar(500)
+  github      String   @db.VarChar(500)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([position])
+  @@map("project")
+}
+
+model Testimonial {
+  id        Int      @id @default(autoincrement())
+  position  Int
+  quote     String
+  author    String   @db.VarChar(200)
+  role      String   @db.VarChar(200)
+  avatar    String   @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([position])
+  @@map("testimonial")
+}
+
+model Highlight {
+  id          Int      @id @default(autoincrement())
+  position    Int
+  icon        String   @db.VarChar(100)
+  title       String   @db.VarChar(200)
+  description String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([position])
+  @@map("highlight")
+}
+
+model SocialLink {
+  id        Int      @id @default(autoincrement())
+  position  Int
+  icon      String   @db.VarChar(100)
+  href      String   @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([position])
+  @@map("social_link")
+}
+
+model Technology {
+  id        Int      @id @default(autoincrement())
+  position  Int
+  name      String   @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([position])
+  @@map("technology")
+}
+
+model ContactInfo {
+  id        Int      @id @default(autoincrement())
+  position  Int
+  icon      String   @db.VarChar(100)
+  label     String   @db.VarChar(100)
+  value     String   @db.VarChar(200)
+  href      String   @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([position])
+  @@map("contact_info")
+}
+
+// Origins allowed by CORS, read on every request; the owner manages them with
+// SQL and can switch one off with `enabled = false`.
+model CorsOrigin {
+  id        Int      @id @default(autoincrement())
+  origin    String   @unique @db.VarChar(200)
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("cors_origin")
+}

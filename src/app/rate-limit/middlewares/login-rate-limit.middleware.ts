@@ -1,0 +1,26 @@
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NestMiddleware,
+} from '@nestjs/common';
+import type { NextFunction, Request, Response } from 'express';
+import { clientIp } from '../../common/utils/client-ip.js';
+import { RateLimitService } from '../rate-limit.service.js';
+
+// Runs before JsonBodyMiddleware, so every request is counted whatever its
+// body turns out to be, and a blocked login never reaches the credential check.
+@Injectable()
+export class LoginRateLimitMiddleware implements NestMiddleware {
+  constructor(private readonly rateLimit: RateLimitService) {}
+
+  async use(req: Request, _res: Response, next: NextFunction): Promise<void> {
+    if (!(await this.rateLimit.hit('login', clientIp(req)))) {
+      throw new HttpException(
+        'Too many attempts. Please try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    next();
+  }
+}
