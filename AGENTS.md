@@ -22,7 +22,7 @@ NestJS 12 (Express) with ESM, TypeScript 6 strict and PostgreSQL through Prisma 
 ## Rules
 - Read `docs/constitution.md` and the active spec (`docs/specs/NNN-*/spec.md`) before touching code.
 - Do not add dependencies, change the ORM, or alter the database schema without asking; schema changes only through Prisma migrations.
-- Application secrets (`brevo_api_key`, `jwt_secret`) live in the database `property` table and are managed only with SQL (no endpoint reads or writes them); only `DATABASE_URL` lives in an environment variable (`.env` locally, gitignored). Never commit, return or log them.
+- Application secrets (`brevo_api_key`, `jwt_secret`) live in the database `property` table and are managed only with SQL (no endpoint reads or writes them); only `DATABASE_URL` lives in an environment variable (`.env` locally, gitignored). Never commit, return or log them. Allowed CORS origins live in the `cors_origin` table (`enabled` flag), also managed only with SQL and read on every request.
 - Do not edit the frontend in `../web` from this repo.
 - Do not change `.github/workflows/`, `Dockerfile` or deployment targets without asking; every push to `main` releases to production.
 - Do not change personal content (resume, profile image, about, experience, contact data) without explicit instruction.

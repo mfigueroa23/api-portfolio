@@ -19,6 +19,10 @@ export async function createTestApp(
   ) => builder,
 ): Promise<TestApp> {
   const prisma = new PrismaFake();
+  // What the cors_origin migration inserts.
+  await prisma.corsOrigin.create({
+    data: { origin: 'https://marco.figueroa-sanchez.com', enabled: true },
+  });
   const builder = Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(PrismaService)
     .useValue(prisma);

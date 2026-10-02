@@ -30,7 +30,7 @@ pnpm start:dev        # http://localhost:3000 (override with PORT)
 | `PUT /content/<collection>/:id` | Bearer | Replaces an item |
 | `DELETE /content/<collection>/:id` | Bearer | Deletes an item |
 
-`<collection>` is one of `experiences`, `projects`, `testimonials`, `highlights`, `social-links`, `technologies` and `contact-info`. Errors always have the shape `{ error, fields? }`. CORS only allows `https://marco.figueroa-sanchez.com`.
+`<collection>` is one of `experiences`, `projects`, `testimonials`, `highlights`, `social-links`, `technologies` and `contact-info`. Errors always have the shape `{ error, fields? }`. CORS only allows the origins enabled in the `cors_origin` table (see [CORS origins](#cors-origins)).
 
 ## Database
 The only setting that lives in the environment is `DATABASE_URL` (plus `PORT`). Application secrets live in the `property` table (see [Properties](#properties)).
@@ -94,6 +94,19 @@ Generate a JWT secret with `node -e "console.log(require('node:crypto').randomBy
 ```sql
 INSERT INTO property (key, value) VALUES ('brevo_api_key', '<brevo key>'), ('jwt_secret', '<secret>')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+```
+
+## CORS origins
+The `cors_origin` table lists the origins allowed to call the API from a browser. It is read on every request, so a change applies without a restart, and no endpoint reads or changes it. The migration inserts `https://marco.figueroa-sanchez.com` as enabled. Origins that are missing or disabled get no CORS headers (the browser rejects the response); requests without an `Origin` header, such as `curl` or the web prerender, are served normally.
+
+```sql
+-- List the origins
+SELECT origin, enabled FROM cors_origin ORDER BY origin;
+-- Allow the local web (only in the local database)
+INSERT INTO cors_origin (origin, enabled) VALUES ('http://localhost:4200', true)
+ON CONFLICT (origin) DO UPDATE SET enabled = true, updated_at = now();
+-- Switch an origin off without deleting it
+UPDATE cors_origin SET enabled = false, updated_at = now() WHERE origin = 'http://localhost:4200';
 ```
 
 ## Scripts

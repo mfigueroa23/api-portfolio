@@ -5,8 +5,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
-
-export const ALLOWED_ORIGIN = 'https://marco.figueroa-sanchez.com';
+import { CorsOriginsService } from './cors/cors-origins.service.js';
 
 // Flattens class-validator errors into { field: [messages] }, using dotted
 // paths for nested properties.
@@ -25,10 +24,23 @@ function toFields(
 
 // Shared by main.ts and the e2e tests so both run the same HTTP pipeline.
 export function setupApp(app: INestApplication): void {
+  const corsOrigins = app.get(CorsOriginsService);
   app.enableCors({
-    // An array (not a string) makes cors echo the origin only when it matches,
-    // so other origins get no Access-Control-Allow-Origin header at all.
-    origin: [ALLOWED_ORIGIN],
+    // Checked against the cors_origin table on every request. A missing or
+    // non-enabled origin (and a request without Origin, e.g. curl or the web
+    // prerender) gets no CORS headers but is still served.
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void,
+    ) => {
+      if (!origin) {
+        callback(null, false);
+        return;
+      }
+      void corsOrigins
+        .isAllowed(origin)
+        .then((allowed) => callback(null, allowed));
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['content-type', 'authorization'],
   });

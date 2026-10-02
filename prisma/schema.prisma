@@ -141,3 +141,15 @@ model ContactInfo {
   @@index([position])
   @@map("contact_info")
 }
+
+// Origins allowed by CORS, read on every request; the owner manages them with
+// SQL and can switch one off with `enabled = false`.
+model CorsOrigin {
+  id        Int      @id @default(autoincrement())
+  origin    String   @unique @db.VarChar(200)
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("cors_origin")
+}

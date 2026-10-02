@@ -109,6 +109,7 @@ export class PrismaFake {
   socialLink = new FakeModel();
   technology = new FakeModel();
   contactInfo = new FakeModel();
+  corsOrigin = new FakeModel();
 
   $connect(): Promise<void> {
     return Promise.resolve();
