@@ -4,6 +4,7 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
+import { ContactModule } from './contact/contact.module.js';
 import { JsonBodyMiddleware } from './common/middlewares/json-body.middleware.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
@@ -13,7 +14,7 @@ import { LoginRateLimitMiddleware } from './rate-limit/middlewares/login-rate-li
 import { RateLimitModule } from './rate-limit/rate-limit.module.js';
 
 @Module({
-  imports: [DatabaseModule, PropertiesModule, RateLimitModule],
+  imports: [DatabaseModule, PropertiesModule, RateLimitModule, ContactModule],
   controllers: [HealthController],
 })
 export class AppModule implements NestModule {
