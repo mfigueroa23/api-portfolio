@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module.js';
 import { ContactModule } from './contact/contact.module.js';
+import { ContentModule } from './content/content.module.js';
 import { JsonBodyMiddleware } from './common/middlewares/json-body.middleware.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
@@ -21,6 +22,7 @@ import { RateLimitModule } from './rate-limit/rate-limit.module.js';
     RateLimitModule,
     ContactModule,
     AuthModule,
+    ContentModule,
   ],
   controllers: [HealthController],
 })
