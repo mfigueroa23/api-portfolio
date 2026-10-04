@@ -1,5 +1,5 @@
 # Portfolio API
-Backend for [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com), Marco Figueroa's personal portfolio. It serves the site content (about, experience, projects, testimonials), the resume and the profile image, and handles the contact form.
+Backend for [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com), Marco Figueroa's personal portfolio. It serves the site content (about, experience, projects, certifications, blog posts, testimonials), renders their Markdown bodies, stores uploaded images and PDFs, and handles the contact form.
 
 Live at [api.figueroa-sanchez.com](https://api.figueroa-sanchez.com).
 
@@ -29,11 +29,43 @@ pnpm start:dev        # http://localhost:3000 (override with PORT)
 | `POST /content/<collection>` | Bearer | Creates an item |
 | `PUT /content/<collection>/:id` | Bearer | Replaces an item |
 | `DELETE /content/<collection>/:id` | Bearer | Deletes an item |
+| `POST /markdown/render` | Bearer | `{ markdown }` (≤ 100,000 characters) → `{ html, toc, readingMinutes }`, used by the panel preview |
+| `POST /files?name=<name>` | Bearer | Uploads the raw request body (PNG, JPEG, GIF, WebP, SVG up to 5 MiB; PDF up to 10 MiB) → 201 `{ id, name, mime, size, createdAt, url }` |
+| `GET /files?page=&type=image\|pdf` | Bearer | File library, 50 per page, newest first → `{ items, page, totalPages, total }` |
+| `GET /files/:id` | — | Serves the file bytes (see [Files](#files)) |
+| `GET /files/:id/references` | Bearer | Items whose fields contain the file URL, drafts included → `[{ collection, id, title, status? }]` |
+| `DELETE /files/:id` | Bearer | Deletes a file (204) |
 
-`<collection>` is one of `experiences`, `projects`, `testimonials`, `highlights`, `social-links`, `technologies` and `contact-info`. Errors always have the shape `{ error, fields? }`. CORS only allows the origins enabled in the `cors_origin` table (see [CORS origins](#cors-origins)).
+`<collection>` is one of `testimonials`, `highlights`, `social-links`, `technologies`, `contact-info` and `certifications`, plus `experiences` (same routes, ordered by `current` first, then `startDate` descending with undated entries last). Projects and posts have their own routes (see [Projects and posts](#projects-and-posts)). Errors always have the shape `{ error, fields? }`. CORS only allows the origins enabled in the `cors_origin` table (see [CORS origins](#cors-origins)).
+
+- **Experience** (`ExperienceDto`): no `position`; `startDate` (`YYYY-MM`, required, stored as the 1st of the month and returned as `YYYY-MM`, or `null` for entries created before Spec 003) and an optional Markdown `body`; the list adds `bodyHtml`.
+- **Certifications** (`CertificationDto`): `position`, `name`, `issuer`, `issueDate` and optional `expiryDate` as `YYYY-MM-DD` (calendar dates, returned unchanged; an expiry before the issue date is a field error on `expiryDate`), optional `credentialId`, `verificationUrl` and `fileUrl` (http(s)).
+
+### Projects and posts
+Projects and posts are drafts until published. Public routes never return drafts; the owner reads everything through `/all`. Slugs are 1–100 lowercase letters, digits and single hyphens, unique per collection (409 `This slug is already in use.` with a `slug` field error); `tag` and `page` are reserved for posts. A draft needs only its title and slug; publishing (and saving a published item) requires `description` and `image` for projects and `summary` and `body` for posts, answering 400 with one field error per empty field. The first publication date is kept when an item is unpublished and published again.
+
+| Method & route | Auth | Description |
+|---|---|---|
+| `GET /content/projects?limit=` | — | Published projects (`limit` 1–50), `publishedAt` desc then `id` desc, without `body` |
+| `GET /content/projects/all` | Bearer | Every project, drafts first |
+| `GET /content/projects/:slug` | — | A published project with `bodyHtml`; 404 for drafts and unknown slugs |
+| `GET /content/posts?page=&tag=` | — | 10 published posts per page → `{ items, page, totalPages, total, tag }`; items carry `readingMinutes` and no `body`; `tag` filters by its key ignoring case; 404 past the last page or for a tag without published posts |
+| `GET /content/posts/feed` | — | The 20 most recent published posts |
+| `GET /content/posts/all` | Bearer | Every post, drafts first |
+| `GET /content/posts/:slug` | — | A published post with `bodyHtml`, `toc`, `readingMinutes` and `references`; 404 otherwise |
+| `POST /content/{projects,posts}` · `PUT …/:id` · `DELETE …/:id` | Bearer | Create (always a draft), replace, delete |
+| `POST /content/{projects,posts}/:id/publish` · `…/unpublish` | Bearer | Publish (200 item, 400 missing fields) or return to draft |
+
+Post tags (up to 10, 1–30 letters, digits, spaces or hyphens) are trimmed and deduplicated ignoring case; `tagKeys` holds their keys (lowercase, spaces as hyphens), which the web uses in `/blog/tag/<key>`. References are up to 30 `{ title, url }` pairs.
+
+### Markdown
+Bodies (projects, experience, posts) are Markdown rendered only by the API (`markdown-it` with raw HTML disabled, plus `highlight.js`): tables, task lists, strikethrough, highlighted code, `mermaid` fences as escaped source inside `figure.md-mermaid` (drawn by the web and panel), external links in a new tab, lazy images, unique `id`s on h2/h3 for the table of contents, and a reading time of words outside code / 200, at least 1 minute. JSON bodies may be up to 512 KiB on the content routes that carry Markdown and on `/markdown/render`, 16 KiB elsewhere.
+
+### Files
+Uploads are stored in the `file` table (`bytea`), not on disk or an external service. The type is detected from the content (magic bytes), never from the name or `Content-Type`. File URLs are absolute, built from `API_PUBLIC_URL` (default `https://api.figueroa-sanchez.com`; set it in `.env` for local runs, e.g. `http://localhost:3000`) and never change. `GET /files/:id` is public and answers with the exact type, `X-Content-Type-Options: nosniff`, a `Content-Security-Policy` ending in `sandbox` (so scripts in an uploaded SVG never run when its URL is opened), `Cache-Control: public, max-age=31536000, immutable` and `Cross-Origin-Resource-Policy: cross-origin`.
 
 ## Database
-The only setting that lives in the environment is `DATABASE_URL` (plus `PORT`). Application secrets live in the `property` table (see [Properties](#properties)).
+The only setting that lives in the environment is `DATABASE_URL` (plus `PORT` and, for local runs, the non-secret `API_PUBLIC_URL`). Application secrets live in the `property` table (see [Properties](#properties)).
 
 ### Local database
 Create the role and the database once (the role needs `CREATEDB` for Prisma's shadow database):
@@ -69,6 +101,11 @@ env:
 ```bash
 psql "${DATABASE_URL%%\?*}" -v ON_ERROR_STOP=1 -f prisma/sql/initial-content.sql
 ```
+
+### Release order for content pages (version 4.0.0)
+1. Run `pnpm prisma migrate deploy` against production. `content_pages` publishes every existing project, sets publication dates that keep the old `position` order and proposes slugs from the titles; `drop_content_position` removes `position` from projects and experience.
+2. Merge to `main`, which releases the API (before the web and panel versions that use the new endpoints).
+3. Review the generated project slugs in the panel and set every experience start date (entries without one are listed last).
 
 ## Administrator
 The only administrator is the owner, who signs in with Google through the panel (Spec 002); there is no password login. The panel sends the Google ID token to `POST /auth/google`, and the API verifies it with Google against `google_client_id`, requires a verified email equal to `admin_google_email` (trimmed, case-insensitive) and returns its own token. Send it as `Authorization: Bearer <accessToken>`; it expires after one hour.
