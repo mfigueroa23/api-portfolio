@@ -6,6 +6,7 @@ import { HighlightsModule } from './highlights/highlights.module.js';
 import { SocialLinksModule } from './social-links/social-links.module.js';
 import { TechnologiesModule } from './technologies/technologies.module.js';
 import { ContactInfoModule } from './contact-info/contact-info.module.js';
+import { CertificationsModule } from './certifications/certifications.module.js';
 
 // One sub-module per collection, each served under /content/<collection>.
 @Module({
@@ -17,6 +18,7 @@ import { ContactInfoModule } from './contact-info/contact-info.module.js';
     SocialLinksModule,
     TechnologiesModule,
     ContactInfoModule,
+    CertificationsModule,
   ],
 })
 export class ContentModule {}

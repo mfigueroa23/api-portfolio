@@ -7,8 +7,10 @@ export function EmptyToNull(): PropertyDecorator {
   );
 }
 
-// Absolute http(s) URLs only (no javascript:, data: or relative paths).
+// Absolute http(s) URLs only (no javascript:, data: or relative paths). A TLD
+// is not required so file URLs of a local API (http://localhost:3000) work.
 export const HTTP_URL_OPTIONS = {
   protocols: ['http', 'https'],
   require_protocol: true,
+  require_tld: false,
 };

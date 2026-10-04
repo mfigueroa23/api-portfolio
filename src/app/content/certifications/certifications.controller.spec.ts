@@ -1,38 +1,35 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants.js';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
-import { ExperienceDto } from './dto/experiences.dto.js';
-import { ExperiencesController } from './experiences.controller.js';
-import { ExperiencesService } from './experiences.service.js';
+import { CertificationDto } from './dto/certifications.dto.js';
+import { CertificationsController } from './certifications.controller.js';
+import { CertificationsService } from './certifications.service.js';
 
 const item = {
-  period: 'Jan 2026 — Present',
-  role: 'Engineer',
-  company: 'Acme',
-  description: 'Builds things.',
-  technologies: ['TypeScript', 'NestJS'],
-  current: true,
-  startDate: '2026-01',
-} satisfies ExperienceDto;
+  position: 0,
+  name: 'CKA',
+  issuer: 'CNCF',
+  issueDate: '2025-03-14',
+} satisfies CertificationDto;
 const row = { id: 1, ...item };
 
 // Nest stores guard metadata on the method function itself.
-function guardsOf(method: keyof ExperiencesController): unknown {
+function guardsOf(method: keyof CertificationsController): unknown {
   const handler: unknown = Object.getOwnPropertyDescriptor(
-    ExperiencesController.prototype,
+    CertificationsController.prototype,
     method,
   )?.value;
   return Reflect.getMetadata(GUARDS_METADATA, handler as object);
 }
 
-describe('ExperiencesController', () => {
+describe('CertificationsController', () => {
   const service = {
     list: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     remove: vi.fn(),
   };
-  const controller = new ExperiencesController(
-    service as unknown as ExperiencesService,
+  const controller = new CertificationsController(
+    service as unknown as CertificationsService,
   );
 
   beforeEach(() => {

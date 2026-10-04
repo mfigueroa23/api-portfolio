@@ -12,26 +12,23 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
-import { ExperienceDto } from './dto/experiences.dto.js';
-import { ExperiencesService } from './experiences.service.js';
-import type {
-  ExperienceListItem,
-  ExperienceResponse,
-} from './experiences.service.js';
+import { CertificationDto } from './dto/certifications.dto.js';
+import { CertificationsService } from './certifications.service.js';
+import type { CertificationResponse } from './certifications.service.js';
 
 // Reading is public; writing requires the administrator's token.
-@Controller('content/experiences')
-export class ExperiencesController {
-  constructor(private readonly service: ExperiencesService) {}
+@Controller('content/certifications')
+export class CertificationsController {
+  constructor(private readonly service: CertificationsService) {}
 
   @Get()
-  list(): Promise<ExperienceListItem[]> {
+  list(): Promise<CertificationResponse[]> {
     return this.service.list();
   }
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  create(@Body() dto: ExperienceDto): Promise<ExperienceResponse> {
+  create(@Body() dto: CertificationDto): Promise<CertificationResponse> {
     return this.service.create(dto);
   }
 
@@ -39,8 +36,8 @@ export class ExperiencesController {
   @UseGuards(JwtAuthGuard)
   update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: ExperienceDto,
-  ): Promise<ExperienceResponse> {
+    @Body() dto: CertificationDto,
+  ): Promise<CertificationResponse> {
     return this.service.update(id, dto);
   }
 
