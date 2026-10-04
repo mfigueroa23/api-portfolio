@@ -1,3 +1,4 @@
+import type { AddressInfo } from 'node:net';
 import {
   createServer,
   IncomingMessage,
@@ -86,9 +87,23 @@ describe('JsonBodyMiddleware', () => {
   });
 
   describe('per-route limits', () => {
+    // One listening server for the whole block, instead of supertest opening
+    // and closing an ephemeral one for each of these many large requests.
+    const limits = createEchoServer();
+    let url: string;
+
+    beforeAll(async () => {
+      await new Promise<void>((resolve) => limits.listen(0, resolve));
+      url = `http://127.0.0.1:${(limits.address() as AddressInfo).port}`;
+    });
+
+    afterAll(async () => {
+      await new Promise((resolve) => limits.close(resolve));
+    });
+
     const json = (path: string, size: number) => {
       const message = 'x'.repeat(size - 14);
-      return request(server)
+      return request(url)
         .post(path)
         .set('content-type', 'application/json')
         .send(JSON.stringify({ message }));
