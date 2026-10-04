@@ -84,4 +84,72 @@ describe('JsonBodyMiddleware', () => {
 
     expect(response.body).toEqual({ defined: false, body: null });
   });
+
+  describe('per-route limits', () => {
+    const json = (path: string, size: number) => {
+      const message = 'x'.repeat(size - 14);
+      return request(server)
+        .post(path)
+        .set('content-type', 'application/json')
+        .send(JSON.stringify({ message }));
+    };
+    const KIB = 1024;
+
+    it.each([
+      '/content/projects',
+      '/content/projects/3',
+      '/content/experiences/1',
+      '/content/posts',
+      '/content/posts/7?draft=1',
+      '/markdown/render',
+    ])('accepts up to 512 KiB on %s', async (path) => {
+      const response = await json(path, 512 * KIB);
+
+      expect(response.body.defined).toBe(true);
+    });
+
+    it.each(['/content/projects', '/content/posts/7', '/markdown/render'])(
+      'leaves the body undefined above 512 KiB on %s',
+      async (path) => {
+        const response = await json(path, 512 * KIB + 1);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ defined: false, body: null });
+      },
+    );
+
+    it.each([
+      '/contact',
+      '/content/testimonials',
+      '/content/projectsx',
+      '/markdown',
+      '/auth/google',
+    ])('keeps 16 KiB on %s', async (path) => {
+      expect((await json(path, 16 * KIB)).body.defined).toBe(true);
+      expect((await json(path, 16 * KIB + 1)).body.defined).toBe(false);
+    });
+  });
+
+  it('leaves a body already read by another middleware untouched', async () => {
+    const middleware = new JsonBodyMiddleware();
+    const preRead = createServer(
+      (req: IncomingMessage, res: ServerResponse) => {
+        const typed = req as IncomingMessage & { body?: unknown };
+        req.resume();
+        req.on('end', () => {
+          typed.body = Buffer.from('raw');
+          middleware.use(typed as never, res as never, () => {
+            res.end(String(Buffer.isBuffer(typed.body)));
+          });
+        });
+      },
+    );
+
+    const response = await request(preRead)
+      .post('/files')
+      .set('content-type', 'application/json')
+      .send('{"a":1}');
+
+    expect(response.text).toBe('true');
+  });
 });

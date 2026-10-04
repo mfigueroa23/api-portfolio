@@ -46,6 +46,12 @@ describe('POST /markdown/render (e2e)', () => {
     expect(response.body.html).not.toContain('<script>');
   });
 
+  it('accepts a body of 100,000 multi-byte characters', async () => {
+    const response = await render({ markdown: 'é'.repeat(100_000) });
+
+    expect(response.status).toBe(200);
+  });
+
   it('answers 400 when markdown is missing or too long', async () => {
     const missing = await render({});
     const tooLong = await render({ markdown: 'a'.repeat(100_001) });
