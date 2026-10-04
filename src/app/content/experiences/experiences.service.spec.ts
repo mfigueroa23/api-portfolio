@@ -5,7 +5,6 @@ import { ExperienceDto } from './dto/experiences.dto.js';
 import { ExperiencesService } from './experiences.service.js';
 
 const item = {
-  position: 0,
   period: 'Jan 2026 — Present',
   role: 'Engineer',
   company: 'Acme',
@@ -23,12 +22,29 @@ describe('ExperiencesService', () => {
     service = new ExperiencesService(prisma as unknown as PrismaService);
   });
 
-  it('lists items ordered by position, then id', async () => {
-    for (const position of [2, 0, 2, 1]) {
-      await service.create({ ...item, position });
+  it('lists current entries first, then by start date, undated last', async () => {
+    const rows: [boolean, string | null][] = [
+      [false, '2020-01-01'],
+      [false, null],
+      [true, '2023-05-01'],
+      [false, '2024-03-01'],
+      [true, null],
+      [false, '2024-03-01'],
+      [true, '2025-01-01'],
+    ];
+    for (const [current, startDate] of rows) {
+      await prisma.experience.create({
+        data: {
+          ...item,
+          current,
+          startDate: startDate ? new Date(startDate) : null,
+        },
+      });
     }
 
-    expect((await service.list()).map((row) => row.id)).toEqual([2, 4, 1, 3]);
+    expect((await service.list()).map((row) => row.id)).toEqual([
+      7, 3, 5, 4, 6, 1, 2,
+    ]);
   });
 
   it('lists an empty collection as an empty array', async () => {

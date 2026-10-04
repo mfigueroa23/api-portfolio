@@ -5,7 +5,6 @@ import { ExperiencesController } from './experiences.controller.js';
 import { ExperiencesService } from './experiences.service.js';
 
 const item = {
-  position: 0,
   period: 'Jan 2026 — Present',
   role: 'Engineer',
   company: 'Acme',

@@ -1,23 +1,33 @@
+import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
+  IsUrl,
+  Matches,
+  Max,
   MaxLength,
   Min,
 } from 'class-validator';
+import { MAX_BODY_LENGTH } from '../../../markdown/dto/render-markdown.dto.js';
+import { EmptyToNull, HTTP_URL_OPTIONS } from '../../common/dto-transforms.js';
+import {
+  SLUG_FORMAT_MESSAGE,
+  SLUG_MAX_LENGTH,
+  SLUG_PATTERN,
+} from '../../common/slug.js';
 
-// Used for create and for update (PUT replaces the whole item). Limits match
-// the column sizes; unknown fields are stripped by the global ValidationPipe.
+// Used for create and for update (PUT replaces the whole item). A draft only
+// needs slug and title; description and image are required to publish (checked
+// by the service). Unknown fields, `position` included, are stripped by the
+// global ValidationPipe.
 export class ProjectDto {
-  @IsInt()
-  @Min(0)
-  position: number;
-
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
+  @MaxLength(SLUG_MAX_LENGTH)
+  @Matches(SLUG_PATTERN, { message: SLUG_FORMAT_MESSAGE })
   slug: string;
 
   @IsString()
@@ -25,28 +35,48 @@ export class ProjectDto {
   @MaxLength(200)
   title: string;
 
+  @EmptyToNull()
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(5000)
-  description: string;
+  description?: string | null;
 
+  @EmptyToNull()
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
-  image: string;
+  image?: string | null;
 
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   @ArrayMaxSize(50)
-  tags: string[];
+  tags?: string[];
 
-  @IsString()
-  @IsNotEmpty()
+  @EmptyToNull()
+  @IsOptional()
+  @IsUrl(HTTP_URL_OPTIONS)
   @MaxLength(500)
-  link: string;
+  link?: string | null;
 
-  @IsString()
-  @IsNotEmpty()
+  @EmptyToNull()
+  @IsOptional()
+  @IsUrl(HTTP_URL_OPTIONS)
   @MaxLength(500)
-  github: string;
+  github?: string | null;
+
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_BODY_LENGTH)
+  body?: string | null;
+}
+
+export class ListProjectsQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
 }

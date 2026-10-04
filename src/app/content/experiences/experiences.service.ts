@@ -7,10 +7,15 @@ import { ExperienceDto } from './dto/experiences.dto.js';
 export class ExperiencesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Display order set by the owner; id breaks ties so the order is stable.
+  // Current entries first, then the latest start date; entries without a
+  // start date (created before it existed) go last; id keeps ties stable.
   list(): Promise<Experience[]> {
     return this.prisma.experience.findMany({
-      orderBy: [{ position: 'asc' }, { id: 'asc' }],
+      orderBy: [
+        { current: 'desc' },
+        { startDate: { sort: 'desc', nulls: 'last' } },
+        { id: 'asc' },
+      ],
     });
   }
 

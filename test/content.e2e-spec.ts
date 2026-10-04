@@ -23,14 +23,24 @@ interface Collection {
   tooLong: { field: string; max: number };
   // Values for columns with a unique index, so seeded rows do not collide.
   uniqueFields?: (n: number) => Record<string, unknown>;
+  // Rows seeded for the public list, the ids it must return in order and
+  // what its first item looks like. Defaults to the `position` order.
+  order?: {
+    seeds: Record<string, unknown>[];
+    ids: number[];
+    first: Record<string, unknown>;
+  };
+  // Collections without `position` only check the too long text.
+  positioned?: boolean;
 }
+
+const at = (iso: string) => new Date(iso);
 
 const collections: Collection[] = [
   {
     path: 'experiences',
     model: 'experience',
     item: {
-      position: 0,
       period: 'Jan 2026 — Present',
       role: 'Engineer',
       company: 'Acme',
@@ -40,7 +50,6 @@ const collections: Collection[] = [
     },
     textField: 'period',
     requiredFields: [
-      'position',
       'period',
       'role',
       'company',
@@ -49,12 +58,24 @@ const collections: Collection[] = [
       'current',
     ],
     tooLong: { field: 'period', max: 100 },
+    positioned: false,
+    // Current first, then start date descending, undated last, then id.
+    order: {
+      seeds: [
+        { current: false, startDate: at('2020-01-01') },
+        { current: false, startDate: null },
+        { current: true, startDate: at('2023-05-01') },
+        { current: false, startDate: at('2024-03-01') },
+        { current: false, startDate: at('2024-03-01') },
+      ],
+      ids: [3, 4, 5, 1, 2],
+      first: { id: 3, role: 'Engineer', current: true },
+    },
   },
   {
     path: 'projects',
     model: 'project',
     item: {
-      position: 0,
       slug: 'portfolio',
       title: 'Portfolio',
       description: 'Personal site.',
@@ -64,18 +85,21 @@ const collections: Collection[] = [
       github: 'https://github.com/example/portfolio',
     },
     textField: 'title',
-    requiredFields: [
-      'position',
-      'slug',
-      'title',
-      'description',
-      'image',
-      'tags',
-      'link',
-      'github',
-    ],
+    requiredFields: ['slug', 'title'],
     tooLong: { field: 'title', max: 200 },
     uniqueFields: (n) => ({ slug: `seeded-${n}` }),
+    positioned: false,
+    // Published only, newest publication first, then id descending.
+    order: {
+      seeds: [
+        { status: 'published', publishedAt: at('2025-01-01T00:00:00Z') },
+        { status: 'draft', publishedAt: null },
+        { status: 'published', publishedAt: at('2026-01-01T00:00:00Z') },
+        { status: 'published', publishedAt: at('2025-01-01T00:00:00Z') },
+      ],
+      ids: [3, 4, 1],
+      first: { id: 3, slug: 'seeded-3', title: 'Portfolio' },
+    },
   },
   {
     path: 'testimonials',
@@ -145,7 +169,17 @@ const collections: Collection[] = [
 
 describe.each(collections)(
   '/content/$path (e2e)',
-  ({ path, model, item, textField, requiredFields, tooLong, uniqueFields }) => {
+  ({
+    path,
+    model,
+    item,
+    textField,
+    requiredFields,
+    tooLong,
+    uniqueFields,
+    order,
+    positioned = true,
+  }) => {
     let app: INestApplication<App>;
     let prisma: PrismaFake;
     let token: string;
@@ -182,20 +216,23 @@ describe.each(collections)(
         expect(response.body).toEqual([]);
       });
 
-      it('returns every item ordered by position, then id', async () => {
-        for (const position of [2, 0, 2, 1]) await seed({ position });
+      it('returns every item in display order', async () => {
+        const seeds =
+          order?.seeds ??
+          [2, 0, 2, 1].map(
+            (position) => ({ position }) as Record<string, unknown>,
+          );
+        for (const data of seeds) await seed(data);
 
         const response = await server().get(url);
 
         expect(response.status).toBe(200);
-        expect(response.body.map((row: { id: number }) => row.id)).toEqual([
-          2, 4, 1, 3,
-        ]);
-        expect(response.body[0]).toMatchObject({
-          ...item,
-          ...uniqueFields?.(2),
-          position: 0,
-        });
+        expect(response.body.map((row: { id: number }) => row.id)).toEqual(
+          order?.ids ?? [2, 4, 1, 3],
+        );
+        expect(response.body[0]).toMatchObject(
+          order?.first ?? { ...item, position: 0 },
+        );
       });
     });
 
@@ -251,11 +288,17 @@ describe.each(collections)(
         const response = await server()
           .post(url)
           .set('Authorization', auth())
-          .send({ ...item, unknownField: 'stripped' });
+          .send({
+            ...item,
+            unknownField: 'stripped',
+            // Projects and experience no longer have a position.
+            ...(positioned ? {} : { position: 5 }),
+          });
 
         expect(response.status).toBe(201);
         expect(response.body).toMatchObject({ id: 1, ...item });
         expect(response.body).not.toHaveProperty('unknownField');
+        if (!positioned) expect(response.body).not.toHaveProperty('position');
         expect(await prisma[model].findMany()).toEqual([
           expect.objectContaining(item),
         ]);
@@ -304,7 +347,7 @@ describe.each(collections)(
         expect(await prisma[model].count()).toBe(0);
       });
 
-      it('answers 400 for a too long text and a negative position', async () => {
+      it('answers 400 for a too long text (and a negative position)', async () => {
         const existing = await seed({});
 
         const response = await server()
@@ -312,13 +355,13 @@ describe.each(collections)(
           .set('Authorization', auth())
           .send({
             ...item,
-            position: -1,
+            ...(positioned ? { position: -1 } : {}),
             [tooLong.field]: 'a'.repeat(tooLong.max + 1),
           });
 
         expect(response.status).toBe(400);
         expect(Object.keys(response.body.fields).sort()).toEqual(
-          ['position', tooLong.field].sort(),
+          [...(positioned ? ['position'] : []), tooLong.field].sort(),
         );
         expect(await prisma[model].findMany()).toEqual([existing]);
       });

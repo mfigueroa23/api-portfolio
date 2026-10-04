@@ -2,20 +2,14 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
-  IsInt,
   IsNotEmpty,
   IsString,
   MaxLength,
-  Min,
 } from 'class-validator';
 
 // Used for create and for update (PUT replaces the whole item). Limits match
 // the column sizes; unknown fields are stripped by the global ValidationPipe.
 export class ExperienceDto {
-  @IsInt()
-  @Min(0)
-  position: number;
-
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
