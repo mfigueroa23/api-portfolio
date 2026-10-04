@@ -176,7 +176,7 @@ describe('/content/projects (e2e)', () => {
   });
 
   it('answers 400 for an invalid slug', async () => {
-    for (const slug of ['Bad Slug', '-a', 'a--b', 'a'.repeat(101)]) {
+    for (const slug of ['Bad Slug', '-a', 'a--b', 'a'.repeat(101), 'all']) {
       const response = await create({ ...draft, slug });
 
       expect(response.status).toBe(400);

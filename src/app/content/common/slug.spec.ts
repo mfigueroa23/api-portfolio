@@ -4,6 +4,7 @@ import {
   assertSlugFree,
   isValidSlug,
   RESERVED_POST_SLUGS,
+  RESERVED_PROJECT_SLUGS,
   SLUG_CONFLICT,
   SLUG_MAX_LENGTH,
   SlugLookup,
@@ -31,9 +32,10 @@ describe('slug rules', () => {
     expect(isValidSlug(slug)).toBe(false);
   });
 
-  it('limits slugs to 100 characters and reserves tag and page for posts', () => {
+  it('limits slugs to 100 characters and reserves the listing routes', () => {
     expect(SLUG_MAX_LENGTH).toBe(100);
-    expect(RESERVED_POST_SLUGS).toEqual(['tag', 'page']);
+    expect(RESERVED_POST_SLUGS).toEqual(['tag', 'page', 'all', 'feed']);
+    expect(RESERVED_PROJECT_SLUGS).toEqual(['all']);
   });
 });
 

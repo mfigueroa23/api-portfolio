@@ -4,6 +4,7 @@ import {
   IsArray,
   IsInt,
   IsNotEmpty,
+  IsNotIn,
   IsOptional,
   IsString,
   IsUrl,
@@ -15,6 +16,7 @@ import {
 import { MAX_BODY_LENGTH } from '../../../markdown/dto/render-markdown.dto.js';
 import { EmptyToNull, HTTP_URL_OPTIONS } from '../../common/dto-transforms.js';
 import {
+  RESERVED_PROJECT_SLUGS,
   SLUG_FORMAT_MESSAGE,
   SLUG_MAX_LENGTH,
   SLUG_PATTERN,
@@ -28,6 +30,9 @@ export class ProjectDto {
   @IsString()
   @MaxLength(SLUG_MAX_LENGTH)
   @Matches(SLUG_PATTERN, { message: SLUG_FORMAT_MESSAGE })
+  @IsNotIn(RESERVED_PROJECT_SLUGS, {
+    message: `slug cannot be ${RESERVED_PROJECT_SLUGS.join(' or ')}`,
+  })
   slug: string;
 
   @IsString()

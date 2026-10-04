@@ -26,7 +26,7 @@ describe('ProjectDto', () => {
     expect(dto).not.toHaveProperty('position', 3);
   });
 
-  it.each(['a'.repeat(101), '-a', 'a--b', 'Upper', 'a b'])(
+  it.each(['a'.repeat(101), '-a', 'a--b', 'Upper', 'a b', 'all'])(
     'refuses the slug %j',
     async (slug) => {
       expect((await errorsFor({ ...draft, slug })).fields).toEqual(['slug']);

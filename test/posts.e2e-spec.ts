@@ -115,7 +115,7 @@ describe('/content/posts (e2e)', () => {
   });
 
   it('answers 400 with a slug field error for reserved slugs', async () => {
-    for (const slug of ['tag', 'page']) {
+    for (const slug of ['tag', 'page', 'all', 'feed']) {
       const response = await create({ ...complete, slug });
 
       expect(response.status).toBe(400);
