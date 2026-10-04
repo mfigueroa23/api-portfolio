@@ -11,6 +11,7 @@ import { CorsModule } from './cors/cors.module.js';
 import { JsonBodyMiddleware } from './common/middlewares/json-body.middleware.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
+import { MarkdownModule } from './markdown/markdown.module.js';
 import { PropertiesModule } from './properties/properties.module.js';
 import { ContactRateLimitMiddleware } from './rate-limit/middlewares/contact-rate-limit.middleware.js';
 import { LoginRateLimitMiddleware } from './rate-limit/middlewares/login-rate-limit.middleware.js';
@@ -25,6 +26,7 @@ import { RateLimitModule } from './rate-limit/rate-limit.module.js';
     ContactModule,
     AuthModule,
     ContentModule,
+    MarkdownModule,
   ],
   controllers: [HealthController],
 })
