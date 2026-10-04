@@ -1,4 +1,4 @@
 export interface JwtPayload {
-  // Id of the admin_user row.
-  sub: number;
+  // There is a single administrator, identified by Google sign-in.
+  sub: 'owner';
 }

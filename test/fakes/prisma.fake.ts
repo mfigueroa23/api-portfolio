@@ -100,7 +100,6 @@ export class FakeModel<T extends Row = Row> {
 
 export class PrismaFake {
   property = new FakeModel('key');
-  adminUser = new FakeModel();
   rateLimitHit = new FakeModel('id', ['createdAt']);
   experience = new FakeModel();
   project = new FakeModel();

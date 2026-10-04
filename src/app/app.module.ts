@@ -37,7 +37,7 @@ export class AppModule implements NestModule {
       .forRoutes({ path: 'contact', method: RequestMethod.POST });
     consumer
       .apply(LoginRateLimitMiddleware)
-      .forRoutes({ path: 'auth/login', method: RequestMethod.POST });
+      .forRoutes({ path: 'auth/google', method: RequestMethod.POST });
     consumer.apply(JsonBodyMiddleware).forRoutes('{*path}');
   }
 }

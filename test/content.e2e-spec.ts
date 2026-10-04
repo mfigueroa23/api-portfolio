@@ -152,7 +152,7 @@ describe.each(collections)(
         data: { key: 'jwt_secret', value: SECRET },
       });
       token = await new JwtService().signAsync(
-        { sub: 1 },
+        { sub: 'owner' },
         { secret: SECRET, expiresIn: '1h' },
       );
     });
@@ -217,7 +217,7 @@ describe.each(collections)(
 
       it('answers 401 to an expired token', async () => {
         const expired = await new JwtService().signAsync(
-          { sub: 1, exp: Math.floor(Date.now() / 1000) - 10 },
+          { sub: 'owner', exp: Math.floor(Date.now() / 1000) - 10 },
           { secret: SECRET },
         );
 
