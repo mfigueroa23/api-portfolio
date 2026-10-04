@@ -22,7 +22,9 @@ NestJS 12 (Express) with ESM, TypeScript 6 strict and PostgreSQL through Prisma 
 ## Rules
 - Read `docs/constitution.md` and the active spec (`docs/specs/NNN-*/spec.md`) before touching code.
 - Do not add dependencies, change the ORM, or alter the database schema without asking; schema changes only through Prisma migrations.
-- Application secrets (`brevo_api_key`, `jwt_secret`) live in the database `property` table and are managed only with SQL (no endpoint reads or writes them); only `DATABASE_URL` lives in an environment variable (`.env` locally, gitignored). Never commit, return or log them. Allowed CORS origins live in the `cors_origin` table (`enabled` flag), also managed only with SQL and read on every request.
+- Application secrets (`brevo_api_key`, `jwt_secret`) and the Google sign-in configuration (`google_client_id`, `admin_google_email`) live in the database `property` table and are managed only with SQL (no endpoint reads or writes them); only `DATABASE_URL` lives in an environment variable (`.env` locally, gitignored). Never commit, return or log them. Allowed CORS origins live in the `cors_origin` table (`enabled` flag), also managed only with SQL and read on every request.
+- Administrator sign-in is Google only: `POST /auth/google` exchanges a Google ID token of the account in `admin_google_email` for the API's 1-hour JWT. This supersedes Spec 001 RF-34–RF-37 (password login, administrator created with a password, password hash); there is no password login or `admin_user` table.
+- The content DTOs are mirrored in `panel/lib/collections.ts`: a DTO change must update that registry under the same spec.
 - Do not edit the frontend in `../web` from this repo.
 - Do not change `.github/workflows/`, `Dockerfile` or deployment targets without asking; every push to `main` releases to production.
 - Do not change personal content (resume, profile image, about, experience, contact data) without explicit instruction.

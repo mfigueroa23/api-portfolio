@@ -24,7 +24,7 @@ pnpm start:dev        # http://localhost:3000 (override with PORT)
 |---|---|---|
 | `GET /` | — | Health check `{ status: 'ok' }` |
 | `POST /contact` | — | Sends the contact form via Brevo (5 per IP per hour) |
-| `POST /auth/login` | — | Returns `{ accessToken, expiresIn: 3600 }` (5 attempts per IP per hour) |
+| `POST /auth/google` | — | Exchanges a Google ID token `{ credential }` of the authorized account for `{ accessToken, expiresIn: 3600 }` (5 attempts per IP per hour) |
 | `GET /content/<collection>` | — | Lists a collection ordered by `position` |
 | `POST /content/<collection>` | Bearer | Creates an item |
 | `PUT /content/<collection>/:id` | Bearer | Replaces an item |
@@ -71,16 +71,23 @@ psql "${DATABASE_URL%%\?*}" -v ON_ERROR_STOP=1 -f prisma/sql/initial-content.sql
 ```
 
 ## Administrator
-There is exactly one administrator account (a singleton index rejects a second row), created with SQL. The password is stored as a scrypt hash in the format `scrypt$<salt-b64>$<hash-b64>`. Generate it without leaving the password in the shell history:
-```bash
-read -rs PASSWORD && PASSWORD="$PASSWORD" node -e "const c=require('node:crypto');const s=c.randomBytes(16);console.log('scrypt\$'+s.toString('base64')+'\$'+c.scryptSync(process.env.PASSWORD,s,64).toString('base64'))"; unset PASSWORD
-```
-Then insert the account (or update `password_hash` to change the password):
-```sql
-INSERT INTO admin_user (username, password_hash) VALUES ('<username>', '<hash>');
-UPDATE admin_user SET password_hash = '<new hash>', updated_at = now();
-```
-Log in with `POST /auth/login` and send the token as `Authorization: Bearer <accessToken>`; it expires after one hour.
+The only administrator is the owner, who signs in with Google through the panel (Spec 002); there is no password login. The panel sends the Google ID token to `POST /auth/google`, and the API verifies it with Google against `google_client_id`, requires a verified email equal to `admin_google_email` (trimmed, case-insensitive) and returns its own token. Send it as `Authorization: Bearer <accessToken>`; it expires after one hour.
+
+| Response | When |
+|---|---|
+| 200 `{ accessToken, expiresIn: 3600 }` | The authorized account signed in |
+| 400 `Validation failed.` | `credential` is missing, empty or longer than 4096 characters |
+| 401 `Invalid Google sign-in.` | Google does not verify the token (bad signature, expired, issued for another client) |
+| 403 `This Google account is not authorized.` | Another account, or an unverified email |
+| 429 `Too many attempts. Please try again later.` | 5 attempts from the same IP in the last hour |
+| 500 `Sign-in is not available.` | `google_client_id` or `admin_google_email` is missing |
+
+To change the authorized account, update `admin_google_email` with SQL (see [Properties](#properties)); tokens already issued stay valid until they expire.
+
+### Release order for the Google sign-in (version 3.0.0)
+1. Insert the `google_client_id` and `admin_google_email` properties and the panel's `cors_origin` row in production (SQL below and in [CORS origins](#cors-origins)). Without the properties, sign-in answers 500 and there is no password fallback.
+2. Run `pnpm prisma migrate deploy` against production; the `drop_admin_user` migration drops the old `admin_user` table.
+3. Merge to `main`, which releases the API.
 
 ## Properties
 The `property` table holds the application secrets. They are read on every request, so an update applies without a restart, and no endpoint ever reads or returns them.
@@ -88,11 +95,20 @@ The `property` table holds the application secrets. They are read on every reque
 | Key | Used for |
 |---|---|
 | `brevo_api_key` | Sending the contact email through Brevo. Missing → `POST /contact` answers 500. |
-| `jwt_secret` | Signing and verifying the admin tokens. Missing → login and writes answer 500. Changing it invalidates every issued token. |
+| `jwt_secret` | Signing and verifying the admin tokens. Missing → sign-in and writes answer 500. Changing it invalidates every issued token. |
+| `google_client_id` | OAuth web client ID of the panel, the audience every Google ID token must be issued for. Not secret. Missing → `POST /auth/google` answers 500. |
+| `admin_google_email` | Google email of the only authorized administrator. Missing → `POST /auth/google` answers 500. |
 
 Generate a JWT secret with `node -e "console.log(require('node:crypto').randomBytes(48).toString('base64'))"` and insert or update the values with SQL:
 ```sql
 INSERT INTO property (key, value) VALUES ('brevo_api_key', '<brevo key>'), ('jwt_secret', '<secret>')
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+```
+The Google sign-in needs two more rows:
+```sql
+INSERT INTO property (key, value) VALUES
+  ('google_client_id', '<client id>.apps.googleusercontent.com'),
+  ('admin_google_email', '<owner Google email>')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 ```
 
@@ -102,6 +118,9 @@ The `cors_origin` table lists the origins allowed to call the API from a browser
 ```sql
 -- List the origins
 SELECT origin, enabled FROM cors_origin ORDER BY origin;
+-- Allow the management panel (production)
+INSERT INTO cors_origin (origin, enabled) VALUES ('https://panel.figueroa-sanchez.com', true)
+ON CONFLICT (origin) DO UPDATE SET enabled = true, updated_at = now();
 -- Allow the local web (only in the local database)
 INSERT INTO cors_origin (origin, enabled) VALUES ('http://localhost:4200', true)
 ON CONFLICT (origin) DO UPDATE SET enabled = true, updated_at = now();
