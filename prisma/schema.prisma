@@ -22,18 +22,6 @@ model Property {
   @@map("property")
 }
 
-// Single administrator account; the migration adds a singleton index so a
-// second row cannot be inserted.
-model AdminUser {
-  id           Int      @id @default(autoincrement())
-  username     String   @unique @db.VarChar(100)
-  passwordHash String   @map("password_hash")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-
-  @@map("admin_user")
-}
-
 // One row per counted request; rows older than the window are deleted on the
 // next hit from the same bucket and IP.
 model RateLimitHit {
