@@ -6,6 +6,7 @@ import { ProjectsService } from './projects.service.js';
 
 const item = {
   position: 0,
+  slug: 'portfolio',
   title: 'Portfolio',
   description: 'Personal site.',
   image: '/projects/portfolio.png',
@@ -24,8 +25,8 @@ describe('ProjectsService', () => {
   });
 
   it('lists items ordered by position, then id', async () => {
-    for (const position of [2, 0, 2, 1]) {
-      await service.create({ ...item, position });
+    for (const [index, position] of [2, 0, 2, 1].entries()) {
+      await service.create({ ...item, slug: `project-${index}`, position });
     }
 
     expect((await service.list()).map((row) => row.id)).toEqual([2, 4, 1, 3]);

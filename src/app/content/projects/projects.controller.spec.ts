@@ -6,6 +6,7 @@ import { ProjectsService } from './projects.service.js';
 
 const item = {
   position: 0,
+  slug: 'portfolio',
   title: 'Portfolio',
   description: 'Personal site.',
   image: '/projects/portfolio.png',

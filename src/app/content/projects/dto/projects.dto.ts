@@ -17,6 +17,11 @@ export class ProjectDto {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(100)
+  slug: string;
+
+  @IsString()
+  @IsNotEmpty()
   @MaxLength(200)
   title: string;
 

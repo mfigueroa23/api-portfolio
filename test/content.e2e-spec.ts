@@ -21,6 +21,8 @@ interface Collection {
   textField: string;
   requiredFields: string[];
   tooLong: { field: string; max: number };
+  // Values for columns with a unique index, so seeded rows do not collide.
+  uniqueFields?: (n: number) => Record<string, unknown>;
 }
 
 const collections: Collection[] = [
@@ -53,6 +55,7 @@ const collections: Collection[] = [
     model: 'project',
     item: {
       position: 0,
+      slug: 'portfolio',
       title: 'Portfolio',
       description: 'Personal site.',
       image: '/projects/portfolio.png',
@@ -63,6 +66,7 @@ const collections: Collection[] = [
     textField: 'title',
     requiredFields: [
       'position',
+      'slug',
       'title',
       'description',
       'image',
@@ -71,6 +75,7 @@ const collections: Collection[] = [
       'github',
     ],
     tooLong: { field: 'title', max: 200 },
+    uniqueFields: (n) => ({ slug: `seeded-${n}` }),
   },
   {
     path: 'testimonials',
@@ -140,13 +145,15 @@ const collections: Collection[] = [
 
 describe.each(collections)(
   '/content/$path (e2e)',
-  ({ path, model, item, textField, requiredFields, tooLong }) => {
+  ({ path, model, item, textField, requiredFields, tooLong, uniqueFields }) => {
     let app: INestApplication<App>;
     let prisma: PrismaFake;
     let token: string;
+    let seeded = 0;
     const url = `/content/${path}`;
 
     beforeEach(async () => {
+      seeded = 0;
       ({ app, prisma } = await createTestApp());
       await prisma.property.create({
         data: { key: 'jwt_secret', value: SECRET },
@@ -163,7 +170,9 @@ describe.each(collections)(
 
     const server = () => request(app.getHttpServer());
     const seed = (data: Record<string, unknown>) =>
-      prisma[model].create({ data: { ...item, ...data } });
+      prisma[model].create({
+        data: { ...item, ...uniqueFields?.(++seeded), ...data },
+      });
 
     describe('GET (public)', () => {
       it('returns an empty array for an empty collection', async () => {
@@ -182,7 +191,11 @@ describe.each(collections)(
         expect(response.body.map((row: { id: number }) => row.id)).toEqual([
           2, 4, 1, 3,
         ]);
-        expect(response.body[0]).toMatchObject({ ...item, position: 0 });
+        expect(response.body[0]).toMatchObject({
+          ...item,
+          ...uniqueFields?.(2),
+          position: 0,
+        });
       });
     });
 

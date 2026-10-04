@@ -34,36 +34,110 @@ model RateLimitHit {
   @@map("rate_limit_hit")
 }
 
+// Publication state of projects and posts; drafts never reach public reads.
+enum ContentStatus {
+  draft
+  published
+
+  @@map("content_status")
+}
+
 model Experience {
-  id           Int      @id @default(autoincrement())
+  id           Int       @id @default(autoincrement())
   position     Int
-  period       String   @db.VarChar(100)
-  role         String   @db.VarChar(200)
-  company      String   @db.VarChar(200)
+  period       String    @db.VarChar(100)
+  role         String    @db.VarChar(200)
+  company      String    @db.VarChar(200)
   description  String
   technologies String[]
-  current      Boolean  @default(false)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  current      Boolean   @default(false)
+  body         String?
+  // Always the 1st of a month; null only for rows created before Spec 003.
+  startDate    DateTime? @map("start_date") @db.Date
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   @@index([position])
   @@map("experience")
 }
 
 model Project {
-  id          Int      @id @default(autoincrement())
+  id          Int           @id @default(autoincrement())
   position    Int
-  title       String   @db.VarChar(200)
-  description String
-  image       String   @db.VarChar(500)
+  slug        String        @unique @db.VarChar(100)
+  title       String        @db.VarChar(200)
+  // Optional while the project is a draft; required to publish.
+  description String?
+  image       String?       @db.VarChar(500)
   tags        String[]
-  link        String   @db.VarChar(500)
-  github      String   @db.VarChar(500)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  link        String?       @db.VarChar(500)
+  github      String?       @db.VarChar(500)
+  body        String?
+  status      ContentStatus @default(draft)
+  // Set on the first publication and kept afterwards.
+  publishedAt DateTime?     @map("published_at") @db.Timestamptz
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   @@index([position])
+  @@index([status, position])
   @@map("project")
+}
+
+// expiry_date >= issue_date is enforced by a CHECK constraint added by hand in
+// the content_pages migration (Prisma cannot declare it).
+model Certification {
+  id              Int       @id @default(autoincrement())
+  position        Int
+  name            String    @db.VarChar(200)
+  issuer          String    @db.VarChar(200)
+  issueDate       DateTime  @map("issue_date") @db.Date
+  expiryDate      DateTime? @map("expiry_date") @db.Date
+  credentialId    String?   @map("credential_id") @db.VarChar(100)
+  verificationUrl String?   @map("verification_url") @db.VarChar(500)
+  fileUrl         String?   @map("file_url") @db.VarChar(500)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([position])
+  @@map("certification")
+}
+
+model Post {
+  id          Int           @id @default(autoincrement())
+  slug        String        @unique @db.VarChar(100)
+  title       String        @db.VarChar(200)
+  summary     String?       @db.VarChar(300)
+  coverUrl    String?       @map("cover_url") @db.VarChar(500)
+  // Display tags keep the owner's casing; tag_keys (lowercase, spaces as
+  // hyphens) are what listings filter on.
+  tags        String[]      @default([])
+  tagKeys     String[]      @default([]) @map("tag_keys")
+  body        String?
+  // [{ title, url }], always read and written with the post.
+  references  Json          @default("[]")
+  status      ContentStatus @default(draft)
+  publishedAt DateTime?     @map("published_at") @db.Timestamptz
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([tagKeys], type: Gin)
+  @@map("post")
+}
+
+// Uploaded images and PDFs, served publicly by GET /files/:id. Listings never
+// select `data`.
+model File {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar(200)
+  mime      String   @db.VarChar(50)
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([createdAt(sort: Desc)])
+  @@map("file")
 }
 
 model Testimonial {
