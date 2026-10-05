@@ -12,9 +12,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
-import { Experience } from '../../../generated/prisma/client.js';
 import { ExperienceDto } from './dto/experiences.dto.js';
 import { ExperiencesService } from './experiences.service.js';
+import type {
+  ExperienceListItem,
+  ExperienceResponse,
+} from './experiences.service.js';
 
 // Reading is public; writing requires the administrator's token.
 @Controller('content/experiences')
@@ -22,13 +25,13 @@ export class ExperiencesController {
   constructor(private readonly service: ExperiencesService) {}
 
   @Get()
-  list(): Promise<Experience[]> {
+  list(): Promise<ExperienceListItem[]> {
     return this.service.list();
   }
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  create(@Body() dto: ExperienceDto): Promise<Experience> {
+  create(@Body() dto: ExperienceDto): Promise<ExperienceResponse> {
     return this.service.create(dto);
   }
 
@@ -37,7 +40,7 @@ export class ExperiencesController {
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ExperienceDto,
-  ): Promise<Experience> {
+  ): Promise<ExperienceResponse> {
     return this.service.update(id, dto);
   }
 

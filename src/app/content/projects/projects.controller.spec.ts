@@ -5,13 +5,8 @@ import { ProjectsController } from './projects.controller.js';
 import { ProjectsService } from './projects.service.js';
 
 const item = {
-  position: 0,
+  slug: 'portfolio',
   title: 'Portfolio',
-  description: 'Personal site.',
-  image: '/projects/portfolio.png',
-  tags: ['Angular'],
-  link: 'https://example.com',
-  github: 'https://github.com/example/portfolio',
 } satisfies ProjectDto;
 const row = { id: 1, ...item };
 
@@ -26,9 +21,13 @@ function guardsOf(method: keyof ProjectsController): unknown {
 
 describe('ProjectsController', () => {
   const service = {
-    list: vi.fn(),
+    listPublished: vi.fn(),
+    listAll: vi.fn(),
+    findPublishedBySlug: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    publish: vi.fn(),
+    unpublish: vi.fn(),
     remove: vi.fn(),
   };
   const controller = new ProjectsController(
@@ -39,32 +38,60 @@ describe('ProjectsController', () => {
     Object.values(service).forEach((fn) => fn.mockReset());
   });
 
-  it('lists the items without a guard', async () => {
-    service.list.mockResolvedValue([row]);
-
-    await expect(controller.list()).resolves.toEqual([row]);
-    expect(guardsOf('list')).toBeUndefined();
+  it.each(['list', 'findBySlug'] as const)('leaves %s public', (method) => {
+    expect(guardsOf(method)).toBeUndefined();
   });
 
-  it.each(['create', 'update', 'remove'] as const)(
-    'protects %s with JwtAuthGuard',
-    (method) => {
-      expect(guardsOf(method)).toEqual([JwtAuthGuard]);
-    },
-  );
+  it.each([
+    'listAll',
+    'create',
+    'update',
+    'publish',
+    'unpublish',
+    'remove',
+  ] as const)('protects %s with JwtAuthGuard', (method) => {
+    expect(guardsOf(method)).toEqual([JwtAuthGuard]);
+  });
 
-  it('creates through the service', async () => {
+  it('lists published projects with the optional limit', async () => {
+    service.listPublished.mockResolvedValue([row]);
+
+    await expect(controller.list({ limit: 4 })).resolves.toEqual([row]);
+    await controller.list({});
+    expect(service.listPublished.mock.calls).toEqual([[4], [undefined]]);
+  });
+
+  it('lists every project for the owner', async () => {
+    service.listAll.mockResolvedValue([row]);
+
+    await expect(controller.listAll()).resolves.toEqual([row]);
+  });
+
+  it('finds a published project by slug', async () => {
+    service.findPublishedBySlug.mockResolvedValue(row);
+
+    await expect(controller.findBySlug('portfolio')).resolves.toEqual(row);
+    expect(service.findPublishedBySlug).toHaveBeenCalledWith('portfolio');
+  });
+
+  it('creates and updates through the service', async () => {
     service.create.mockResolvedValue(row);
-
-    await expect(controller.create(item)).resolves.toEqual(row);
-    expect(service.create).toHaveBeenCalledWith(item);
-  });
-
-  it('updates through the service', async () => {
     service.update.mockResolvedValue(row);
 
+    await expect(controller.create(item)).resolves.toEqual(row);
     await expect(controller.update(1, item)).resolves.toEqual(row);
+    expect(service.create).toHaveBeenCalledWith(item);
     expect(service.update).toHaveBeenCalledWith(1, item);
+  });
+
+  it('publishes and unpublishes through the service', async () => {
+    service.publish.mockResolvedValue(row);
+    service.unpublish.mockResolvedValue(row);
+
+    await expect(controller.publish(1)).resolves.toEqual(row);
+    await expect(controller.unpublish(1)).resolves.toEqual(row);
+    expect(service.publish).toHaveBeenCalledWith(1);
+    expect(service.unpublish).toHaveBeenCalledWith(1);
   });
 
   it('removes through the service', async () => {

@@ -107,6 +107,66 @@ describe('HttpExceptionFilter', () => {
     expect(body).not.toContain('at ');
   });
 
+  const slugConflict = {
+    error: 'This slug is already in use.',
+    fields: { slug: ['This slug is already in use.'] },
+  };
+
+  it('maps a P2002 on slug (meta.target) to 409 with a slug field error', () => {
+    const { host, response } = mockHost();
+    const error = new Prisma.PrismaClientKnownRequestError('unique', {
+      code: 'P2002',
+      clientVersion: 'test',
+      meta: { target: ['slug'] },
+    });
+
+    filter.catch(error, host);
+
+    expect(response.status).toHaveBeenCalledWith(HttpStatus.CONFLICT);
+    expect(response.json).toHaveBeenCalledWith(slugConflict);
+  });
+
+  it('maps a P2002 on slug reported by the pg driver adapter to 409', () => {
+    const { host, response } = mockHost();
+    // Shape PostgreSQL errors take through @prisma/adapter-pg (no target).
+    const error = new Prisma.PrismaClientKnownRequestError('unique', {
+      code: 'P2002',
+      clientVersion: 'test',
+      meta: {
+        modelName: 'Post',
+        driverAdapterError: {
+          cause: {
+            kind: 'UniqueConstraintViolation',
+            constraint: { index: 'post_slug_key' },
+          },
+        },
+      },
+    });
+
+    filter.catch(error, host);
+
+    expect(response.status).toHaveBeenCalledWith(HttpStatus.CONFLICT);
+    expect(response.json).toHaveBeenCalledWith(slugConflict);
+  });
+
+  it('treats a P2002 on another column as unknown', () => {
+    const { host, response } = mockHost();
+    const error = new Prisma.PrismaClientKnownRequestError('unique', {
+      code: 'P2002',
+      clientVersion: 'test',
+      meta: {
+        target: ['origin'],
+        driverAdapterError: {
+          cause: { constraint: { index: 'cors_origin_origin_key' } },
+        },
+      },
+    });
+
+    filter.catch(error, host);
+
+    expect(response.status).toHaveBeenCalledWith(500);
+  });
+
   it('treats Prisma errors other than P2025 as unknown', () => {
     const { host, response } = mockHost();
     const error = new Prisma.PrismaClientKnownRequestError('unique', {

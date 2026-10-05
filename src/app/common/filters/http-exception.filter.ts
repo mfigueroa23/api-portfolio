@@ -8,10 +8,30 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { Prisma } from '../../../generated/prisma/client.js';
+import { slugConflict } from '../../content/common/slug.js';
 
 export interface ErrorBody {
   error: string;
   fields?: Record<string, string[]>;
+}
+
+// P2002 names the column in meta.target with the classic engine and only the
+// index (`<table>_<column>_key`) through the pg driver adapter.
+function isSlugConflict(error: Prisma.PrismaClientKnownRequestError): boolean {
+  if (error.code !== 'P2002') return false;
+  const meta = (error.meta ?? {}) as {
+    target?: unknown;
+    driverAdapterError?: {
+      cause?: { constraint?: { index?: unknown; fields?: unknown } };
+    };
+  };
+  const constraint = meta.driverAdapterError?.cause?.constraint;
+  const fields = [meta.target, constraint?.fields].flat();
+  return (
+    fields.includes('slug') ||
+    (typeof constraint?.index === 'string' &&
+      constraint.index.endsWith('_slug_key'))
+  );
 }
 
 // Every error leaves the API as { error, fields? }; anything unexpected is
@@ -36,6 +56,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
       exception.code === 'P2025'
     ) {
       return [HttpStatus.NOT_FOUND, { error: 'Not found.' }];
+    }
+    // A slug taken between the service's check and the insert.
+    if (
+      exception instanceof Prisma.PrismaClientKnownRequestError &&
+      isSlugConflict(exception)
+    ) {
+      const conflict = slugConflict();
+      return [conflict.getStatus(), this.fromHttpException(conflict)];
     }
     this.logger.error(exception);
     return [

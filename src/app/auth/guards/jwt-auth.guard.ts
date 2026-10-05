@@ -24,9 +24,14 @@ export class JwtAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    const [scheme, token, ...rest] = (
-      request.headers.authorization ?? ''
-    ).split(' ');
+    await this.verify(request.headers.authorization);
+    return true;
+  }
+
+  // Also used by RawBodyMiddleware, which must reject an upload before
+  // reading its body.
+  async verify(authorization: string | undefined): Promise<void> {
+    const [scheme, token, ...rest] = (authorization ?? '').split(' ');
     if (scheme !== 'Bearer' || !token || rest.length > 0) {
       throw new UnauthorizedException('Unauthorized.');
     }
@@ -45,6 +50,5 @@ export class JwtAuthGuard implements CanActivate {
     } catch {
       throw new UnauthorizedException('Unauthorized.');
     }
-    return true;
   }
 }

@@ -5,13 +5,13 @@ import { ExperiencesController } from './experiences.controller.js';
 import { ExperiencesService } from './experiences.service.js';
 
 const item = {
-  position: 0,
   period: 'Jan 2026 — Present',
   role: 'Engineer',
   company: 'Acme',
   description: 'Builds things.',
   technologies: ['TypeScript', 'NestJS'],
   current: true,
+  startDate: '2026-01',
 } satisfies ExperienceDto;
 const row = { id: 1, ...item };
 

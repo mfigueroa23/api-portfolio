@@ -1,17 +1,23 @@
-import { Prisma } from '../../../generated/prisma/client.js';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaFake } from '../../../../test/fakes/prisma.fake.js';
 import { PrismaService } from '../../database/prisma.service.js';
+import { MarkdownService } from '../../markdown/markdown.service.js';
 import { ProjectDto } from './dto/projects.dto.js';
 import { ProjectsService } from './projects.service.js';
 
 const item = {
-  position: 0,
+  slug: 'portfolio',
   title: 'Portfolio',
   description: 'Personal site.',
-  image: '/projects/portfolio.png',
+  image: 'https://api.figueroa-sanchez.com/files/1',
   tags: ['Angular'],
   link: 'https://example.com',
   github: 'https://github.com/example/portfolio',
+  body: '## Architecture\n\nDetails.',
 } satisfies ProjectDto;
 
 describe('ProjectsService', () => {
@@ -20,52 +26,234 @@ describe('ProjectsService', () => {
 
   beforeEach(() => {
     prisma = new PrismaFake();
-    service = new ProjectsService(prisma as unknown as PrismaService);
+    service = new ProjectsService(
+      prisma as unknown as PrismaService,
+      new MarkdownService(),
+    );
   });
 
-  it('lists items ordered by position, then id', async () => {
-    for (const position of [2, 0, 2, 1]) {
-      await service.create({ ...item, position });
+  // Creates a project and publishes it at the given instant.
+  async function published(slug: string, at: string) {
+    const created = await service.create({ ...item, slug });
+    vi.useFakeTimers({ now: new Date(at) });
+    try {
+      return await service.publish(created.id);
+    } finally {
+      vi.useRealTimers();
     }
+  }
 
-    expect((await service.list()).map((row) => row.id)).toEqual([2, 4, 1, 3]);
-  });
+  describe('writes', () => {
+    it('stores a new project as a draft', async () => {
+      const created = await service.create(item);
 
-  it('lists an empty collection as an empty array', async () => {
-    await expect(service.list()).resolves.toEqual([]);
-  });
-
-  it('creates and returns the stored item', async () => {
-    const created = await service.create(item);
-
-    expect(created).toMatchObject({ id: 1, ...item });
-    expect(await service.list()).toHaveLength(1);
-  });
-
-  it('updates an existing item', async () => {
-    const created = await service.create(item);
-
-    const updated = await service.update(created.id, {
-      ...item,
-      title: 'Updated',
+      expect(created).toMatchObject({
+        id: 1,
+        ...item,
+        status: 'draft',
+        publishedAt: null,
+      });
     });
 
-    expect(updated).toMatchObject({ id: created.id, title: 'Updated' });
-    expect((await service.list())[0]).toMatchObject({ title: 'Updated' });
+    it('saves a draft with only its title and slug', async () => {
+      const created = await service.create({ slug: 'bare', title: 'Bare' });
+
+      expect(created).toMatchObject({
+        slug: 'bare',
+        title: 'Bare',
+        description: null,
+        image: null,
+        tags: [],
+        link: null,
+        github: null,
+        body: null,
+      });
+    });
+
+    it('answers 409 when the slug is used by another project', async () => {
+      const first = await service.create(item);
+      const second = await service.create({ ...item, slug: 'other' });
+
+      await expect(service.create(item)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      await expect(
+        service.update(second.id, { ...item, slug: 'portfolio' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(
+        service.update(first.id, { ...item, title: 'Same slug' }),
+      ).resolves.toMatchObject({ title: 'Same slug' });
+    });
+
+    it('lets a draft lose its description and image', async () => {
+      const created = await service.create(item);
+
+      await expect(
+        service.update(created.id, { slug: 'portfolio', title: 'Portfolio' }),
+      ).resolves.toMatchObject({ description: null, image: null });
+    });
+
+    it('requires description and image while the project is published', async () => {
+      const project = await published('live', '2026-01-01T00:00:00Z');
+
+      const error = await service
+        .update(project.id, { slug: 'live', title: 'Live', image: '' })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(
+        Object.keys(
+          ((error as BadRequestException).getResponse() as { fields: object })
+            .fields,
+        ),
+      ).toEqual(['description', 'image']);
+    });
+
+    it('answers 404 when updating or removing a missing project', async () => {
+      await expect(service.update(99, item)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      await expect(service.remove(99)).rejects.toMatchObject({ code: 'P2025' });
+    });
+
+    it('removes a project', async () => {
+      const created = await service.create(item);
+
+      await service.remove(created.id);
+
+      expect(await service.listAll()).toEqual([]);
+    });
   });
 
-  it('removes an existing item', async () => {
-    const created = await service.create(item);
+  describe('publication', () => {
+    it('publishes with the current date and keeps it when republished', async () => {
+      const project = await published('live', '2026-01-01T00:00:00Z');
 
-    await service.remove(created.id);
+      const draft = await service.unpublish(project.id);
+      vi.useFakeTimers({ now: new Date('2026-06-01T00:00:00Z') });
+      const again = await service.publish(project.id);
+      vi.useRealTimers();
 
-    expect(await service.list()).toEqual([]);
+      expect(project).toMatchObject({
+        status: 'published',
+        publishedAt: new Date('2026-01-01T00:00:00Z'),
+      });
+      expect(draft).toMatchObject({
+        status: 'draft',
+        publishedAt: new Date('2026-01-01T00:00:00Z'),
+      });
+      expect(again.publishedAt).toEqual(new Date('2026-01-01T00:00:00Z'));
+    });
+
+    it('refuses to publish without description and image', async () => {
+      const created = await service.create({ slug: 'bare', title: 'Bare' });
+
+      const error = await service
+        .publish(created.id)
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toEqual({
+        error: 'Validation failed.',
+        fields: {
+          description: ['description is required to publish.'],
+          image: ['image is required to publish.'],
+        },
+      });
+      expect(
+        (await prisma.project.findUnique({ where: { id: 1 } }))?.status,
+      ).toBe('draft');
+    });
+
+    it('answers 404 when publishing a missing project', async () => {
+      await expect(service.publish(99)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      await expect(service.unpublish(99)).rejects.toMatchObject({
+        code: 'P2025',
+      });
+    });
   });
 
-  it('rejects with P2025 when the item does not exist', async () => {
-    await expect(service.update(99, item)).rejects.toBeInstanceOf(
-      Prisma.PrismaClientKnownRequestError,
-    );
-    await expect(service.remove(99)).rejects.toMatchObject({ code: 'P2025' });
+  describe('reads', () => {
+    it('lists published projects newest first without drafts or bodies', async () => {
+      await published('old', '2025-01-01T00:00:00Z');
+      await service.create({ ...item, slug: 'draft' });
+      await published('new', '2026-01-01T00:00:00Z');
+      await published('mid', '2025-06-01T00:00:00Z');
+
+      const list = await service.listPublished();
+
+      expect(list.map((row) => row.slug)).toEqual(['new', 'mid', 'old']);
+      expect(list[0]).not.toHaveProperty('body');
+      expect(list[0]).toMatchObject({ status: 'published' });
+    });
+
+    it('breaks publication date ties by id, newest first', async () => {
+      await published('a', '2026-01-01T00:00:00Z');
+      await published('b', '2026-01-01T00:00:00Z');
+
+      expect((await service.listPublished()).map((row) => row.slug)).toEqual([
+        'b',
+        'a',
+      ]);
+    });
+
+    it('limits the public list', async () => {
+      for (const [index, slug] of ['a', 'b', 'c', 'd', 'e'].entries()) {
+        await published(slug, `2026-01-0${index + 1}T00:00:00Z`);
+      }
+
+      expect((await service.listPublished(4)).map((row) => row.slug)).toEqual([
+        'e',
+        'd',
+        'c',
+        'b',
+      ]);
+    });
+
+    it('lists every project for the owner, drafts first', async () => {
+      await published('old', '2025-01-01T00:00:00Z');
+      await service.create({ ...item, slug: 'draft' });
+      await published('new', '2026-01-01T00:00:00Z');
+
+      const all = await service.listAll();
+
+      expect(all.map((row) => row.slug)).toEqual(['draft', 'new', 'old']);
+      expect(all[0]).toHaveProperty('body', item.body);
+    });
+
+    it('returns a published project by slug with its rendered body', async () => {
+      await published('live', '2026-01-01T00:00:00Z');
+
+      await expect(service.findPublishedBySlug('live')).resolves.toMatchObject({
+        slug: 'live',
+        body: item.body,
+        bodyHtml: '<h2 id="architecture">Architecture</h2>\n<p>Details.</p>\n',
+      });
+    });
+
+    it('renders an empty body as empty HTML', async () => {
+      const created = await service.create({ ...item, slug: 'live' });
+      await prisma.project.update({
+        where: { id: created.id },
+        data: { body: null },
+      });
+      await service.publish(created.id);
+
+      await expect(service.findPublishedBySlug('live')).resolves.toMatchObject({
+        bodyHtml: '',
+      });
+    });
+
+    it('answers 404 for a draft or unknown slug', async () => {
+      await service.create({ ...item, slug: 'draft' });
+
+      for (const slug of ['draft', 'missing']) {
+        await expect(service.findPublishedBySlug(slug)).rejects.toEqual(
+          new NotFoundException('Not found.'),
+        );
+      }
+    });
   });
 });
