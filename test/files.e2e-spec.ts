@@ -115,6 +115,18 @@ describe('/files (e2e)', () => {
       expect(response.body).toEqual({ error: 'Unauthorized.' });
       expect(prisma.file.rows).toEqual([]);
     });
+
+    it('answers 401 to an invalid token before reading the upload', async () => {
+      const response = await server()
+        .post('/files?name=a.png')
+        .set('Authorization', 'Bearer not-a-jwt')
+        .set('content-type', 'application/octet-stream')
+        .send(samples.png);
+
+      expect(response.status).toBe(401);
+      expect(response.body).toEqual({ error: 'Unauthorized.' });
+      expect(prisma.file.rows).toEqual([]);
+    });
   });
 
   describe('GET /files/:id (public)', () => {
