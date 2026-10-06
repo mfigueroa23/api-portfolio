@@ -14,9 +14,14 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
 import { Project } from '../../../generated/prisma/client.js';
+import { LangQueryDto, langOf } from '../common/lang.js';
 import { ListProjectsQueryDto, ProjectDto } from './dto/projects.dto.js';
 import { ProjectsService } from './projects.service.js';
-import type { ProjectDetail, ProjectSummary } from './projects.service.js';
+import type {
+  AdminProject,
+  ProjectDetail,
+  ProjectSummary,
+} from './projects.service.js';
 
 // Public reads only ever see published projects; the owner reads everything
 // through /all (declared before /:slug) and writes with the token.
@@ -26,18 +31,21 @@ export class ProjectsController {
 
   @Get()
   list(@Query() query: ListProjectsQueryDto): Promise<ProjectSummary[]> {
-    return this.service.listPublished(query.limit);
+    return this.service.listPublished(query.limit, langOf(query));
   }
 
   @Get('all')
   @UseGuards(JwtAuthGuard)
-  listAll(): Promise<Project[]> {
+  listAll(): Promise<AdminProject[]> {
     return this.service.listAll();
   }
 
   @Get(':slug')
-  findBySlug(@Param('slug') slug: string): Promise<ProjectDetail> {
-    return this.service.findPublishedBySlug(slug);
+  findBySlug(
+    @Param('slug') slug: string,
+    @Query() query?: LangQueryDto,
+  ): Promise<ProjectDetail> {
+    return this.service.findPublishedBySlug(slug, langOf(query));
   }
 
   @Post()

@@ -8,6 +8,8 @@ import {
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { Observable, of } from 'rxjs';
+import { translate } from '../i18n/messages.js';
+import { requestLang } from '../i18n/request-lang.js';
 
 export const HONEYPOT_REPLY = 'honeypotReply';
 
@@ -23,18 +25,20 @@ export class HoneypotInterceptor implements NestInterceptor {
   constructor(private readonly reflector: Reflector) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const body: unknown = context.switchToHttp().getRequest<Request>().body;
+    const request = context.switchToHttp().getRequest<Request>();
+    const body: unknown = request.body;
     const website =
       typeof body === 'object' && body !== null && !Array.isArray(body)
         ? (body as Record<string, unknown>).website
         : undefined;
 
     if (website !== undefined && website !== null && website !== '') {
-      const message = this.reflector.get<string | undefined>(
+      const message = this.reflector.get<string>(
         HONEYPOT_REPLY,
         context.getHandler(),
       );
-      return of({ message });
+      // In the page's language, like the real success answer.
+      return of({ message: translate(message, requestLang(request)) });
     }
     return next.handle();
   }

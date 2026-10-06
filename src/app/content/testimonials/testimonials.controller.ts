@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
@@ -17,7 +18,9 @@ import {
   CreateTestimonialDto,
   UpdateTestimonialDto,
 } from './dto/testimonials.dto.js';
+import { LangQueryDto, langOf } from '../common/lang.js';
 import {
+  AdminTestimonial,
   PublicTestimonial,
   TestimonialsService,
 } from './testimonials.service.js';
@@ -29,13 +32,13 @@ export class TestimonialsController {
   constructor(private readonly service: TestimonialsService) {}
 
   @Get()
-  list(): Promise<PublicTestimonial[]> {
-    return this.service.listApproved();
+  list(@Query() query?: LangQueryDto): Promise<PublicTestimonial[]> {
+    return this.service.listApproved(langOf(query));
   }
 
   @Get('all')
   @UseGuards(JwtAuthGuard)
-  listAll(): Promise<Testimonial[]> {
+  listAll(): Promise<AdminTestimonial[]> {
     return this.service.listAll();
   }
 

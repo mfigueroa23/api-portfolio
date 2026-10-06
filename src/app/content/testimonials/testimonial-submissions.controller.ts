@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   UseInterceptors,
   ValidationPipe,
 } from '@nestjs/common';
@@ -12,6 +13,8 @@ import {
   HoneypotInterceptor,
   HoneypotReply,
 } from '../../common/interceptors/honeypot.interceptor.js';
+import { translate } from '../../common/i18n/messages.js';
+import { LangQueryDto, langOf } from '../common/lang.js';
 import { SubmitTestimonialDto } from './dto/submit-testimonial.dto.js';
 import type { TestimonialSubmission } from './interfaces/testimonial-submission.interface.js';
 import {
@@ -42,9 +45,11 @@ export class TestimonialSubmissionsController {
   @HoneypotReply(TESTIMONIAL_SUCCESS_MESSAGE)
   async submit(
     @Body(submissionValidationPipe) submission: TestimonialSubmission,
+    @Query() query?: LangQueryDto,
   ): Promise<{ message: string }> {
-    // English-only until Spec 004 phase 3 adds `?lang`.
-    await this.service.submit(submission, 'en');
-    return { message: TESTIMONIAL_SUCCESS_MESSAGE };
+    // The page's language (`?lang=es`), so the message and stored text match.
+    const lang = langOf(query);
+    await this.service.submit(submission, lang);
+    return { message: translate(TESTIMONIAL_SUCCESS_MESSAGE, lang) };
   }
 }

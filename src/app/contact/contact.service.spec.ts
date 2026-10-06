@@ -53,4 +53,15 @@ describe('ContactService', () => {
       BadGatewayException,
     );
   });
+
+  it('writes the visitor language in the email', async () => {
+    await service.send(visitor, 'es');
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html: contactEmailHtml(visitor, 'es'),
+        text: contactEmailText(visitor, 'es'),
+      }),
+    );
+  });
 });

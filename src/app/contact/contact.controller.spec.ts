@@ -22,7 +22,7 @@ describe('ContactController', () => {
     await expect(controller.send(message)).resolves.toEqual({
       message: CONTACT_SUCCESS_MESSAGE,
     });
-    expect(send).toHaveBeenCalledWith(message);
+    expect(send).toHaveBeenCalledWith(message, 'en');
   });
 
   it('propagates service errors', async () => {
@@ -37,5 +37,23 @@ describe('ContactController', () => {
     expect(CONTACT_SUCCESS_MESSAGE).toBe(
       "Message sent successfully! I'll get back to you soon.",
     );
+  });
+
+  it('answers in Spanish and passes the language for lang=es', async () => {
+    const message = { name: 'Ada', email: 'ada@example.com', message: 'Hi' };
+
+    await expect(controller.send(message, { lang: 'es' })).resolves.toEqual({
+      message: '¡Mensaje enviado! Te responderé pronto.',
+    });
+    expect(send).toHaveBeenCalledWith(message, 'es');
+  });
+
+  it('answers in English without a supported language', async () => {
+    const message = { name: 'Ada', email: 'ada@example.com', message: 'Hi' };
+
+    await expect(
+      controller.send(message, { lang: 'fr' as 'es' }),
+    ).resolves.toEqual({ message: CONTACT_SUCCESS_MESSAGE });
+    expect(send).toHaveBeenCalledWith(message, 'en');
   });
 });

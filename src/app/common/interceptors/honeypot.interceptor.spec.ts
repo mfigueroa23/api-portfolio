@@ -22,10 +22,11 @@ const handlerOf = (route: keyof Routes): unknown =>
 function contextWithBody(
   body: unknown,
   route: keyof Routes = 'contact',
+  query: Record<string, unknown> = {},
 ): ExecutionContext {
   return {
     getHandler: () => handlerOf(route),
-    switchToHttp: () => ({ getRequest: () => ({ body }) }),
+    switchToHttp: () => ({ getRequest: () => ({ body, query }) }),
   } as unknown as ExecutionContext;
 }
 
@@ -61,6 +62,26 @@ describe('HoneypotInterceptor', () => {
     expect(result).toEqual({ message: TESTIMONIAL_MESSAGE });
     expect(handle).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['contact', '¡Mensaje enviado! Te responderé pronto.'],
+    [
+      'testimonial',
+      '¡Gracias! Tu testimonio aparecerá cuando haya sido revisado.',
+    ],
+  ] as const)(
+    'answers the %s reply in Spanish for lang=es',
+    async (route, spanish) => {
+      const result = await lastValueFrom(
+        interceptor.intercept(
+          contextWithBody({ website: 'bot' }, route, { lang: 'es' }),
+          next,
+        ),
+      );
+
+      expect(result).toEqual({ message: spanish });
+    },
+  );
 
   it.each([
     ['empty', { name: 'Ada', website: '' }],

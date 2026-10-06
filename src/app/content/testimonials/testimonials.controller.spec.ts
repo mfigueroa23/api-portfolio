@@ -53,6 +53,15 @@ describe('TestimonialsController', () => {
     expect(metadataOf(GUARDS_METADATA, 'list')).toBeUndefined();
   });
 
+  it('passes the requested language to the public list', async () => {
+    service.listApproved.mockResolvedValue([]);
+
+    await controller.list({ lang: 'es' });
+    await controller.list();
+
+    expect(service.listApproved.mock.calls).toEqual([['es'], ['en']]);
+  });
+
   it.each([
     'listAll',
     'pendingCount',

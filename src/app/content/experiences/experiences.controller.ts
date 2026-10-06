@@ -9,12 +9,15 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
+import { LangQueryDto, langOf } from '../common/lang.js';
 import { ExperienceDto } from './dto/experiences.dto.js';
 import { ExperiencesService } from './experiences.service.js';
 import type {
+  AdminExperience,
   ExperienceListItem,
   ExperienceResponse,
 } from './experiences.service.js';
@@ -25,8 +28,14 @@ export class ExperiencesController {
   constructor(private readonly service: ExperiencesService) {}
 
   @Get()
-  list(): Promise<ExperienceListItem[]> {
-    return this.service.list();
+  list(@Query() query?: LangQueryDto): Promise<ExperienceListItem[]> {
+    return this.service.list(langOf(query));
+  }
+
+  @Get('all')
+  @UseGuards(JwtAuthGuard)
+  listAll(): Promise<AdminExperience[]> {
+    return this.service.listAll();
   }
 
   @Post()

@@ -15,7 +15,7 @@ async function errorsFor(
   type: typeof CreateTestimonialDto | typeof UpdateTestimonialDto,
   body: Record<string, unknown>,
 ) {
-  const dto = plainToInstance(type, body);
+  const dto = plainToInstance(type as typeof UpdateTestimonialDto, body);
   const errors = await validate(dto, { whitelist: true });
   return { dto, fields: errors.map((error) => error.property) };
 }
@@ -65,12 +65,31 @@ describe.each([
     ).toEqual(['quote']);
   });
 
-  it('requires quote, author and role', async () => {
-    expect((await errorsFor(type, {})).fields.sort()).toEqual([
-      'author',
-      'quote',
-      'role',
-    ]);
+  it.each([
+    ['quoteEs', 500],
+    ['roleEs', 200],
+  ])(
+    'accepts %s up to %i characters and rejects one more',
+    async (field, max) => {
+      expect(
+        (await errorsFor(type, { ...valid, [field]: 'a'.repeat(max) })).fields,
+      ).toEqual([]);
+      expect(
+        (await errorsFor(type, { ...valid, [field]: 'a'.repeat(max + 1) }))
+          .fields,
+      ).toEqual([field]);
+    },
+  );
+
+  it('stores empty Spanish values as null', async () => {
+    const { dto, fields } = await errorsFor(type, {
+      ...valid,
+      quoteEs: '',
+      roleEs: '',
+    });
+
+    expect(fields).toEqual([]);
+    expect(dto).toMatchObject({ quoteEs: null, roleEs: null });
   });
 
   it('limits author and role to 200 characters', async () => {
@@ -87,6 +106,14 @@ describe.each([
 });
 
 describe('CreateTestimonialDto', () => {
+  it('requires the English quote and role, and the author', async () => {
+    expect((await errorsFor(CreateTestimonialDto, {})).fields.sort()).toEqual([
+      'author',
+      'quote',
+      'role',
+    ]);
+  });
+
   it('has no position: the item is always placed first', async () => {
     const { dto } = await errorsFor(CreateTestimonialDto, {
       ...valid,
@@ -98,6 +125,23 @@ describe('CreateTestimonialDto', () => {
 });
 
 describe('UpdateTestimonialDto', () => {
+  // A pending Spanish submission has no English text yet; the service requires
+  // it on approval and on approved items.
+  it('requires only the author; English quote and role may be empty', async () => {
+    expect((await errorsFor(UpdateTestimonialDto, {})).fields).toEqual([
+      'author',
+    ]);
+    const { dto, fields } = await errorsFor(UpdateTestimonialDto, {
+      author: 'Ana',
+      quote: '',
+      role: '',
+      quoteEs: 'Excelente.',
+      roleEs: 'Ingeniera',
+    });
+    expect(fields).toEqual([]);
+    expect(dto).toMatchObject({ quote: null, role: null });
+  });
+
   it('accepts an optional non-negative position', async () => {
     expect((await errorsFor(UpdateTestimonialDto, valid)).fields).toEqual([]);
     expect(

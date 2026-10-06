@@ -9,12 +9,18 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
+import { LangQueryDto, langOf } from '../common/lang.js';
 import { CertificationDto } from './dto/certifications.dto.js';
 import { CertificationsService } from './certifications.service.js';
-import type { CertificationResponse } from './certifications.service.js';
+import type {
+  AdminCertification,
+  CertificationResponse,
+  LocalizedCertification,
+} from './certifications.service.js';
 
 // Reading is public; writing requires the administrator's token.
 @Controller('content/certifications')
@@ -22,8 +28,14 @@ export class CertificationsController {
   constructor(private readonly service: CertificationsService) {}
 
   @Get()
-  list(): Promise<CertificationResponse[]> {
-    return this.service.list();
+  list(@Query() query?: LangQueryDto): Promise<LocalizedCertification[]> {
+    return this.service.list(langOf(query));
+  }
+
+  @Get('all')
+  @UseGuards(JwtAuthGuard)
+  listAll(): Promise<AdminCertification[]> {
+    return this.service.listAll();
   }
 
   @Post()

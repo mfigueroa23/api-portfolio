@@ -13,17 +13,30 @@ import { MONTH_PATTERN } from '../../common/calendar-dates.js';
 import { EmptyToNull } from '../../common/dto-transforms.js';
 
 // Used for create and for update (PUT replaces the whole item). Limits match
-// the column sizes; unknown fields are stripped by the global ValidationPipe.
+// the column sizes; each optional `<field>Es` (Spanish) has its English
+// field's limit; unknown fields are stripped by the global ValidationPipe.
 export class ExperienceDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
   period: string;
 
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  periodEs?: string | null;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)
   role: string;
+
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  roleEs?: string | null;
 
   @IsString()
   @IsNotEmpty()
@@ -34,6 +47,12 @@ export class ExperienceDto {
   @IsNotEmpty()
   @MaxLength(5000)
   description: string;
+
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  descriptionEs?: string | null;
 
   @IsArray()
   @IsString({ each: true })
@@ -53,4 +72,10 @@ export class ExperienceDto {
   @IsString()
   @MaxLength(MAX_BODY_LENGTH)
   body?: string | null;
+
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_BODY_LENGTH)
+  bodyEs?: string | null;
 }

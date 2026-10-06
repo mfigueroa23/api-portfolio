@@ -382,4 +382,72 @@ describe('PrismaFake', () => {
       ).toEqual([{ id: 1, author: 'a' }]);
     });
   });
+
+  describe.each(['project', 'post'] as const)(
+    'Spanish URL slug index on %s (Spec 004)',
+    (model) => {
+      const create = (data: Record<string, unknown>) =>
+        prisma[model].create({ data: { title: 't', ...data } });
+
+      it('throws P2002 on url_slug_es when slugEs equals another slug without slugEs', async () => {
+        await create({ slug: 'hello' });
+
+        await expect(
+          create({ slug: 'other', slugEs: 'hello' }),
+        ).rejects.toMatchObject({
+          code: 'P2002',
+          meta: { target: ['url_slug_es'] },
+        });
+      });
+
+      it('throws P2002 when the English slug equals another Spanish slug', async () => {
+        await create({ slug: 'a', slugEs: 'hola' });
+
+        await expect(create({ slug: 'hola' })).rejects.toMatchObject({
+          code: 'P2002',
+          meta: { target: ['url_slug_es'] },
+        });
+      });
+
+      it('throws P2002 on update too, but allows slugEs equal to its own slug', async () => {
+        const own = await create({ slug: 'mine' });
+        await create({ slug: 'theirs', slugEs: 'suyo' });
+
+        await expect(
+          prisma[model].update({
+            where: { id: own.id },
+            data: { slugEs: 'mine' },
+          }),
+        ).resolves.toMatchObject({ slugEs: 'mine' });
+        await expect(
+          prisma[model].update({
+            where: { id: own.id },
+            data: { slugEs: 'suyo' },
+          }),
+        ).rejects.toMatchObject({ code: 'P2002' });
+      });
+
+      it('allows a slug whose Spanish URL slug is the Spanish slug of the same row', async () => {
+        await create({ slug: 'a', slugEs: 'b' });
+
+        await expect(
+          create({ slug: 'a2', slugEs: 'b2' }),
+        ).resolves.toBeTruthy();
+      });
+    },
+  );
+
+  it('supports OR conditions and findFirst', async () => {
+    await prisma.post.create({ data: { slug: 'a', title: 'A', slugEs: 'x' } });
+    await prisma.post.create({ data: { slug: 'b', title: 'B' } });
+
+    const found = await prisma.post.findFirst({
+      where: { OR: [{ slugEs: 'b' }, { slugEs: null, slug: 'b' }] },
+    });
+
+    expect(found).toMatchObject({ slug: 'b' });
+    expect(
+      await prisma.post.findFirst({ where: { OR: [{ slug: 'none' }] } }),
+    ).toBeNull();
+  });
 });

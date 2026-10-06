@@ -303,4 +303,143 @@ describe('PostsService', () => {
       }
     });
   });
+
+  describe('Spanish (Spec 004 phase 3)', () => {
+    const spanish = {
+      titleEs: 'Servir archivos desde Postgres',
+      summaryEs: 'Por qué los archivos viven en la base de datos.',
+      bodyEs: `## Por qué\n\n${words(580)}\n\n## Cómo\n\nTexto.`,
+      references: [
+        {
+          title: 'Docs',
+          titleEs: 'Documentación',
+          url: 'https://www.postgresql.org/docs/',
+        },
+      ],
+    };
+
+    it('stores the Spanish fields and the Spanish reference titles', async () => {
+      const created = await service.create({
+        ...complete,
+        ...spanish,
+        slugEs: 'archivos',
+      });
+
+      expect(created).toMatchObject({
+        titleEs: spanish.titleEs,
+        slugEs: 'archivos',
+        references: spanish.references,
+      });
+    });
+
+    it('lists translated posts in Spanish with the Spanish reading time', async () => {
+      await seedPublished(1, spanish);
+      await seedPublished(0);
+
+      const page = await service.listPublished({ page: 1, lang: 'es' });
+
+      expect(page.items[0]).toMatchObject({
+        title: spanish.titleEs,
+        summary: spanish.summaryEs,
+        readingMinutes: 3,
+        lang: 'es',
+      });
+      expect(page.items[0]).not.toHaveProperty('summaryEs');
+    });
+
+    it('keeps the same posts on Spanish tag listings', async () => {
+      await seedPublished(2, spanish);
+
+      const en = await service.listPublished({ page: 1, tag: 'postgres' });
+      const es = await service.listPublished({
+        page: 1,
+        tag: 'postgres',
+        lang: 'es',
+      });
+
+      expect(es.items.map((post) => post.id)).toEqual(
+        en.items.map((post) => post.id),
+      );
+      expect(es.tag).toBe(en.tag);
+    });
+
+    it('feeds posts in Spanish when translated and in English otherwise', async () => {
+      await publishedAt(
+        { ...complete, ...spanish, slug: 'one', slugEs: 'uno' },
+        '2026-01-01T00:00:00Z',
+      );
+      await publishedAt(
+        { ...complete, slug: 'two', titleEs: 'Solo título' },
+        '2026-01-02T00:00:00Z',
+      );
+
+      const feed = await service.feed('es');
+
+      expect(feed).toMatchObject([
+        { slug: 'two', slugEs: null, title: complete.title, lang: 'en' },
+        { slug: 'one', slugEs: 'uno', title: spanish.titleEs, lang: 'es' },
+      ]);
+    });
+
+    it('builds the detail, toc and reading time from the shown language', async () => {
+      await seedPublished(1, { ...spanish, slugEs: 'archivos' });
+
+      const detail = await service.findPublishedBySlug('archivos', 'es');
+
+      expect(detail).toMatchObject({
+        title: spanish.titleEs,
+        slug: 'post-1',
+        slugEs: 'archivos',
+        readingMinutes: 3,
+        references: [
+          { title: 'Documentación', url: 'https://www.postgresql.org/docs/' },
+        ],
+        lang: 'es',
+      });
+      expect(detail.toc.map((entry) => entry.text)).toEqual([
+        'Por qué',
+        'Cómo',
+      ]);
+      expect(detail.bodyHtml).toContain('id="por-que"');
+    });
+
+    it('shows the whole post in English when the Spanish body is missing', async () => {
+      await seedPublished(1, { ...spanish, bodyEs: null });
+
+      await expect(
+        service.findPublishedBySlug('post-1', 'es'),
+      ).resolves.toMatchObject({ title: complete.title, lang: 'en' });
+    });
+
+    it('marks every post of the owner list as translated or not', async () => {
+      await service.create({ ...complete, ...spanish });
+      await service.create({ ...complete, slug: 'other' });
+
+      expect(
+        (await service.listAll()).map(({ slug, translated }) => ({
+          slug,
+          translated,
+        })),
+      ).toEqual([
+        { slug: 'other', translated: false },
+        { slug: 'uploads', translated: true },
+      ]);
+    });
+
+    it('answers 409 on slugEs for another post Spanish URL slug', async () => {
+      await service.create(complete);
+
+      await expect(
+        service.create({ ...complete, slug: 'two', slugEs: 'uploads' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('finds by English slug when a Spanish slug exists, for the redirect', async () => {
+      await seedPublished(1, { slugEs: 'entrada' });
+
+      await expect(
+        service.findPublishedBySlug('post-1', 'es'),
+      ).resolves.toMatchObject({ slug: 'post-1', slugEs: 'entrada' });
+    });
+  });
 });

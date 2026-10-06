@@ -252,4 +252,126 @@ describe('/content/projects (e2e)', () => {
     expect((await publish(999)).status).toBe(404);
     expect((await unpublish(999)).status).toBe(404);
   });
+
+  describe('Spanish (Spec 004 phase 3)', () => {
+    const spanish = {
+      titleEs: 'Portafolio',
+      descriptionEs: 'Sitio personal.',
+      bodyEs: '## Arquitectura',
+    };
+    const conflict = {
+      error: 'This slug is already in use.',
+      fields: { slugEs: ['This slug is already in use.'] },
+    };
+
+    async function published(body: object) {
+      const created = await create(body);
+      expect(created.status).toBe(201);
+      expect((await publish(created.body.id)).status).toBe(200);
+      return created.body as { id: number };
+    }
+
+    it('serves a translated project in Spanish and an untranslated one in English', async () => {
+      await published({ ...complete, ...spanish });
+      await published({ ...complete, slug: 'other', titleEs: 'Otro' });
+
+      const list = await server().get('/content/projects?lang=es');
+      const detail = await server().get('/content/projects/portfolio?lang=es');
+
+      expect(list.body).toMatchObject([
+        { slug: 'other', title: 'Portfolio', lang: 'en' },
+        { slug: 'portfolio', title: 'Portafolio', lang: 'es' },
+      ]);
+      expect(list.body[0]).not.toHaveProperty('titleEs');
+      expect(detail.body).toMatchObject({ title: 'Portafolio', lang: 'es' });
+      expect(detail.body.bodyHtml).toContain('Arquitectura');
+      expect(
+        (await server().get('/content/projects?lang=fr')).body[1],
+      ).toMatchObject({ title: 'Portfolio', lang: 'en' });
+    });
+
+    it('answers 400 for Spanish fields over their limits and stores nothing', async () => {
+      const response = await create({
+        ...complete,
+        titleEs: 'a'.repeat(201),
+        descriptionEs: 'a'.repeat(5001),
+        slugEs: 'Not A Slug',
+      });
+
+      expect(response.status).toBe(400);
+      expect(Object.keys(response.body.fields).sort()).toEqual([
+        'descriptionEs',
+        'slugEs',
+        'titleEs',
+      ]);
+      expect(prisma.project.rows).toEqual([]);
+    });
+
+    it('lists every project for the owner with Spanish fields and translated', async () => {
+      await create({ ...complete, ...spanish });
+
+      expect((await server().get('/content/projects/all')).status).toBe(401);
+      const response = await admin(server().get('/content/projects/all'));
+
+      expect(response.body).toMatchObject([{ ...spanish, translated: true }]);
+    });
+
+    it('answers 409 on slugEs for another project Spanish URL slug and changes nothing', async () => {
+      await create(complete);
+      const other = await create({ ...draft, slug: 'other' });
+
+      const created = await create({
+        ...draft,
+        slug: 'third',
+        slugEs: 'portfolio',
+      });
+      const updated = await admin(
+        server().put(`/content/projects/${other.body.id}`),
+      ).send({ ...draft, slug: 'other', slugEs: 'portfolio' });
+
+      expect(created.status).toBe(409);
+      expect(created.body).toEqual(conflict);
+      expect(updated.status).toBe(409);
+      expect(updated.body).toEqual(conflict);
+      expect(prisma.project.rows).toHaveLength(2);
+      expect(prisma.project.rows[1].slugEs).toBeNull();
+    });
+
+    it('allows a Spanish slug equal to the project own slug', async () => {
+      const response = await create({ ...complete, slugEs: 'portfolio' });
+
+      expect(response.status).toBe(201);
+    });
+
+    it('finds a project by its Spanish slug, by its English slug, and returns both slugs', async () => {
+      await published({ ...complete, ...spanish, slugEs: 'portafolio' });
+      await published({ ...complete, slug: 'plain' });
+
+      const bySpanish = await server().get(
+        '/content/projects/portafolio?lang=es',
+      );
+      const byEnglish = await server().get(
+        '/content/projects/portfolio?lang=es',
+      );
+      const withoutSpanish = await server().get(
+        '/content/projects/plain?lang=es',
+      );
+
+      expect(bySpanish.body).toMatchObject({
+        slug: 'portfolio',
+        slugEs: 'portafolio',
+      });
+      expect(byEnglish.body).toMatchObject({
+        slug: 'portfolio',
+        slugEs: 'portafolio',
+      });
+      expect(withoutSpanish.body).toMatchObject({
+        slug: 'plain',
+        slugEs: null,
+      });
+      expect((await server().get('/content/projects/portafolio')).status).toBe(
+        404,
+      );
+    });
+  });
 });

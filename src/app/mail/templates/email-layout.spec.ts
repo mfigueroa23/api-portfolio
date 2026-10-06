@@ -56,7 +56,7 @@ describe('email layout', () => {
     const used = new Set(
       (html.match(/#[0-9a-fA-F]{6}\b/g) ?? []).map((c) => c.toLowerCase()),
     );
-    const allowed = new Set(Object.values(palette));
+    const allowed = new Set<string>(Object.values(palette));
     for (const color of used) expect(allowed.has(color), color).toBe(true);
   });
 

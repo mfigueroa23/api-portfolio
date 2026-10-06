@@ -42,6 +42,15 @@ describe('TestimonialSubmissionsController', () => {
     expect(submit).toHaveBeenCalledWith(submission, 'en');
   });
 
+  it('stores a Spanish submission and answers in Spanish for lang=es', async () => {
+    await expect(
+      controller.submit(submission, { lang: 'es' }),
+    ).resolves.toEqual({
+      message: '¡Gracias! Tu testimonio aparecerá cuando haya sido revisado.',
+    });
+    expect(submit).toHaveBeenCalledWith(submission, 'es');
+  });
+
   it('propagates service errors', async () => {
     submit.mockRejectedValue(new Error('boom'));
 

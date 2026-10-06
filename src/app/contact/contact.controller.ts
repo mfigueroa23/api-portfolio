@@ -5,9 +5,11 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   UseInterceptors,
   ValidationPipe,
 } from '@nestjs/common';
+import { translate } from '../common/i18n/messages.js';
 import {
   HoneypotInterceptor,
   HoneypotReply,
@@ -16,6 +18,7 @@ import {
   CONTACT_INVALID_MESSAGE,
   CONTACT_SUCCESS_MESSAGE,
 } from './contact.constants.js';
+import { LangQueryDto, langOf } from '../content/common/lang.js';
 import { ContactService } from './contact.service.js';
 import { SendContactDto } from './dto/send-contact.dto.js';
 import type { ContactMessage } from './interfaces/contact-message.interface.js';
@@ -41,8 +44,11 @@ export class ContactController {
   @HoneypotReply(CONTACT_SUCCESS_MESSAGE)
   async send(
     @Body(contactValidationPipe) message: ContactMessage,
+    @Query() query?: LangQueryDto,
   ): Promise<{ message: string }> {
-    await this.contact.send(message);
-    return { message: CONTACT_SUCCESS_MESSAGE };
+    // The page's language (`?lang=es`): Spanish answer, "Language" line.
+    const lang = langOf(query);
+    await this.contact.send(message, lang);
+    return { message: translate(CONTACT_SUCCESS_MESSAGE, lang) };
   }
 }

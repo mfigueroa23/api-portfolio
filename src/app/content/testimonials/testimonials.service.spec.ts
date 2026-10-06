@@ -1,4 +1,9 @@
-import { BadGatewayException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaFake } from '../../../../test/fakes/prisma.fake.js';
 import { PrismaService } from '../../database/prisma.service.js';
@@ -25,6 +30,7 @@ const PUBLIC_FIELDS = [
   'avatar',
   'createdAt',
   'id',
+  'lang',
   'position',
   'quote',
   'role',
@@ -382,6 +388,140 @@ describe('TestimonialsService', () => {
       vi.advanceTimersByTime(365 * 24 * 60 * 60 * 1000);
 
       await expect(service.pendingCount()).resolves.toEqual({ count: 1 });
+    });
+  });
+
+  describe('Spanish (Spec 004 phase 3)', () => {
+    const spanish = { quoteEs: 'Gran trabajo.', roleEs: 'Almirante' };
+
+    it('lists approved items in Spanish only when fully translated', async () => {
+      await seed({ author: 'a', position: 0, ...spanish });
+      await seed({ author: 'b', position: 1, quoteEs: 'Solo la cita.' });
+
+      const rows = await service.listApproved('es');
+
+      expect(rows).toEqual([
+        expect.objectContaining({
+          author: 'a',
+          quote: 'Gran trabajo.',
+          role: 'Almirante',
+          lang: 'es',
+        }),
+        expect.objectContaining({
+          author: 'b',
+          quote: 'Great work.',
+          role: 'Admiral',
+          lang: 'en',
+        }),
+      ]);
+      for (const row of rows) {
+        expect(row).not.toHaveProperty('quoteEs');
+        expect(row).not.toHaveProperty('roleEs');
+      }
+    });
+
+    it('lists English with lang "en" by default', async () => {
+      await seed({ position: 0, ...spanish });
+
+      expect(await service.listApproved()).toEqual([
+        expect.objectContaining({ quote: 'Great work.', lang: 'en' }),
+      ]);
+    });
+
+    it('marks each owner list item as translated or not', async () => {
+      await seed({ author: 'a', position: 0, ...spanish });
+      await seed({ author: 'b', position: 1 });
+
+      expect(
+        (await service.listAll()).map(({ author, translated }) => ({
+          author,
+          translated,
+        })),
+      ).toEqual([
+        { author: 'a', translated: true },
+        { author: 'b', translated: false },
+      ]);
+    });
+
+    it('stores a Spanish submission as the Spanish role and quote', async () => {
+      await service.submit(submission, 'es');
+
+      expect(prisma.testimonial.rows).toEqual([
+        expect.objectContaining({
+          status: 'pending',
+          language: 'es',
+          role: null,
+          quote: null,
+          roleEs: 'Engineer',
+          quoteEs: 'A pleasure to work with.',
+        }),
+      ]);
+    });
+
+    it('stores an English submission as the English role and quote', async () => {
+      await service.submit(submission, 'en');
+
+      expect(prisma.testimonial.rows[0]).toMatchObject({
+        role: 'Engineer',
+        quote: 'A pleasure to work with.',
+        roleEs: null,
+        quoteEs: null,
+      });
+    });
+
+    it('writes the language line of the notification in English words', async () => {
+      await service.submit(submission, 'es');
+
+      const [[email]] = send.mock.calls as [[{ text: string; html: string }]];
+      expect(email.text).toContain('Language: Spanish');
+      expect(email.html).toContain('New Testimonial');
+    });
+
+    it('saves a pending Spanish submission without English text', async () => {
+      const row = await pending({ quote: null, role: null, ...spanish });
+
+      await expect(
+        service.update(row.id, { author: 'Ana', ...spanish }),
+      ).resolves.toMatchObject({ quote: null, status: 'pending' });
+    });
+
+    it('refuses to approve without the English quote and role', async () => {
+      const row = await pending({ quote: null, role: null, ...spanish });
+
+      const error = await service
+        .approve(row.id, { author: 'Ana', ...spanish })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        error: 'Validation failed.',
+        fields: { quote: expect.any(Array), role: expect.any(Array) },
+      });
+      expect(prisma.testimonial.rows[0]).toMatchObject({ status: 'pending' });
+    });
+
+    it('refuses to empty the English text of an approved item', async () => {
+      const row = await seed({ position: 0 });
+
+      await expect(
+        service.update(row.id, { author: 'Ana', quote: null, role: 'R' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.testimonial.rows[0]).toMatchObject({
+        quote: 'Great work.',
+      });
+    });
+
+    it('approves with both language versions', async () => {
+      const row = await pending({ quote: null, role: null });
+
+      await expect(
+        service.approve(row.id, { ...item, ...spanish }),
+      ).resolves.toMatchObject({
+        status: 'approved',
+        quote: 'Great work.',
+        quoteEs: 'Gran trabajo.',
+        roleEs: 'Almirante',
+      });
     });
   });
 });

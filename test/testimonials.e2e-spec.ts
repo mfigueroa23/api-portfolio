@@ -355,7 +355,7 @@ describe('testimonials (e2e)', () => {
       const response = await server()
         .post(`/content/testimonials/${id}/approve`)
         .set('Authorization', auth())
-        .send({ ...ownerItem, quote: 'a'.repeat(501), role: '' });
+        .send({ ...ownerItem, quote: 'a'.repeat(501), role: 'a'.repeat(201) });
 
       expect(response.status).toBe(400);
       expect(Object.keys(response.body.fields).sort()).toEqual([
@@ -460,6 +460,144 @@ describe('testimonials (e2e)', () => {
       ).toMatchObject({ avatar: 'https://api.figueroa-sanchez.com/files/a' });
       expect((await put('')).body).toMatchObject({ avatar: null });
       expect((await put('/relative.png')).status).toBe(400);
+    });
+  });
+
+  describe('Spanish (Spec 004 phase 3)', () => {
+    const submitLang = (
+      body: object | string,
+      lang: string,
+      ip = '203.0.113.40',
+    ) =>
+      server()
+        .post(`/testimonials?lang=${lang}`)
+        .set('CF-Connecting-IP', ip)
+        .set('content-type', 'application/json')
+        .send(typeof body === 'string' ? body : JSON.stringify(body));
+
+    it('stores a Spanish submission as the Spanish role and quote and answers in Spanish', async () => {
+      const response = await submitLang(valid, 'es');
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        message: '¡Gracias! Tu testimonio aparecerá cuando haya sido revisado.',
+      });
+      expect(prisma.testimonial.rows).toEqual([
+        expect.objectContaining({
+          language: 'es',
+          role: null,
+          quote: null,
+          roleEs: 'Engineer at Acme',
+          quoteEs: 'A pleasure to work with.',
+        }),
+      ]);
+      expect(sendEmail).toHaveBeenCalledWith(
+        BREVO_KEY,
+        expect.objectContaining({
+          subject: 'New testimonial from Ada Lovelace',
+          text: expect.stringContaining('Language: Spanish') as string,
+        }),
+      );
+    });
+
+    it('answers invalid, malformed, honeypot and 429 in Spanish', async () => {
+      const invalid = await submitLang({ ...valid, name: '' }, 'es');
+      const malformed = await submitLang('{', 'es');
+      const honeypot = await submitLang({ ...valid, website: 'x' }, 'es');
+      const limited = await submitLang(valid, 'es');
+
+      expect(invalid.status).toBe(400);
+      expect(invalid.body).toEqual({
+        error: 'Completa todos los campos con valores válidos.',
+      });
+      expect(malformed.body).toEqual(invalid.body);
+      expect(honeypot.status).toBe(201);
+      expect(honeypot.body).toEqual({
+        message: '¡Gracias! Tu testimonio aparecerá cuando haya sido revisado.',
+      });
+      expect(limited.status).toBe(429);
+      expect(limited.body).toEqual({
+        error: 'Demasiados envíos. Inténtalo más tarde.',
+      });
+    });
+
+    it.each(['fr', 'en'])('answers in English for lang=%s', async (lang) => {
+      const response = await submitLang(valid, lang);
+
+      expect(response.body).toEqual(SUCCESS);
+      expect(prisma.testimonial.rows[0]).toMatchObject({
+        language: 'en',
+        role: 'Engineer at Acme',
+        roleEs: null,
+      });
+    });
+
+    it('refuses to approve a Spanish submission without English text, then approves it', async () => {
+      await submitLang(valid, 'es');
+      const { id } = prisma.testimonial.rows[0] as { id: number };
+      const approve = (body: object) =>
+        server()
+          .post(`/content/testimonials/${id}/approve`)
+          .set('Authorization', auth())
+          .send(body);
+
+      const refused = await approve({
+        author: 'Ada Lovelace',
+        quoteEs: 'Un placer.',
+        roleEs: 'Ingeniera',
+      });
+      const approved = await approve({
+        ...ownerItem,
+        author: 'Ada Lovelace',
+        quoteEs: 'Un placer.',
+        roleEs: 'Ingeniera',
+      });
+
+      expect(refused.status).toBe(400);
+      expect(Object.keys(refused.body.fields).sort()).toEqual([
+        'quote',
+        'role',
+      ]);
+      expect(approved.status).toBe(200);
+      expect(
+        (await server().get('/content/testimonials?lang=es')).body,
+      ).toEqual([
+        expect.objectContaining({
+          quote: 'Un placer.',
+          role: 'Ingeniera',
+          lang: 'es',
+        }),
+      ]);
+    });
+
+    it('saves a pending Spanish submission without English text', async () => {
+      await submitLang(valid, 'es');
+      const { id } = prisma.testimonial.rows[0] as { id: number };
+
+      const response = await server()
+        .put(`/content/testimonials/${id}`)
+        .set('Authorization', auth())
+        .send({ author: 'Ada', quoteEs: 'Editado.', roleEs: 'Ingeniera' });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        status: 'pending',
+        quote: null,
+        quoteEs: 'Editado.',
+      });
+    });
+
+    it('lists testimonials for the owner with translated', async () => {
+      await server()
+        .post('/content/testimonials')
+        .set('Authorization', auth())
+        .send({ ...ownerItem, quoteEs: 'Gran trabajo.', roleEs: 'Almirante' });
+
+      const response = await server()
+        .get('/content/testimonials/all')
+        .set('Authorization', auth());
+
+      expect(response.body).toMatchObject([{ translated: true }]);
     });
   });
 });

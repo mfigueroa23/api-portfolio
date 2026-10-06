@@ -23,10 +23,11 @@ pnpm start:dev        # http://localhost:3000 (override with PORT)
 | Method & route | Auth | Description |
 |---|---|---|
 | `GET /` | — | Health check `{ status: 'ok' }` |
-| `POST /contact` | — | Sends the contact form via Brevo (5 per IP per hour) |
-| `POST /testimonials` | — | Visitor testimonial `{ name, role, email, testimonial }` → 201, stored as pending for review (3 per IP per rolling 24 hours); see [Testimonials](#testimonials) |
+| `POST /contact?lang=` | — | Sends the contact form via Brevo (5 per IP per hour); messages in Spanish with `lang=es` |
+| `POST /testimonials?lang=` | — | Visitor testimonial `{ name, role, email, testimonial }` → 201, stored as pending for review (3 per IP per rolling 24 hours); see [Testimonials](#testimonials) |
 | `POST /auth/google` | — | Exchanges a Google ID token `{ credential }` of the authorized account for `{ accessToken, expiresIn: 3600 }` (5 attempts per IP per hour) |
-| `GET /content/<collection>` | — | Lists a collection ordered by `position` |
+| `GET /content/<collection>?lang=` | — | Lists a collection ordered by `position`, localized (see [Languages](#languages)) |
+| `GET /content/<collection>/all` | Bearer | Owner list of `experiences`, `certifications`, `highlights`, `contact-info` (and `testimonials`): raw rows with the Spanish fields and `translated` |
 | `POST /content/<collection>` | Bearer | Creates an item |
 | `PUT /content/<collection>/:id` | Bearer | Replaces an item |
 | `DELETE /content/<collection>/:id` | Bearer | Deletes an item |
@@ -59,10 +60,29 @@ Projects and posts are drafts until published. Public routes never return drafts
 
 Post tags (up to 10, 1–30 letters, digits, spaces or hyphens) are trimmed and deduplicated ignoring case; `tagKeys` holds their keys (lowercase, spaces as hyphens), which the web uses in `/blog/tag/<key>`. References are up to 30 `{ title, url }` pairs.
 
+### Languages
+The site is in English and Spanish (Spec 004). Every text visitors read has an English field and an optional Spanish `<field>Es` with the same validators and limits (`""` stored as null); names, companies, issuers, technologies, tags, URLs, dates, images and files are shared. Content from before Spec 004 is English with no Spanish version.
+
+| Collection | Spanish fields |
+|---|---|
+| projects | `titleEs`, `descriptionEs`, `bodyEs`, `slugEs` |
+| posts | `titleEs`, `summaryEs`, `bodyEs`, `slugEs`, `references[].titleEs` |
+| experiences | `periodEs`, `roleEs`, `descriptionEs`, `bodyEs` |
+| certifications | `nameEs` |
+| highlights | `titleEs`, `descriptionEs` |
+| contact-info | `labelEs` |
+| testimonials | `quoteEs`, `roleEs` |
+
+- **`?lang=en|es`** on every public read (lists, details, `posts/feed`; anything else is English): an item is returned in Spanish only when it is *translated* (every bilingual field with an English value has a Spanish one, and every reference title a `titleEs`); otherwise every field is English. Each item carries `lang` (`"en"` or `"es"`) and never the `*Es` fields; Markdown, `toc` and `readingMinutes` come from the body shown. Tags are shared, so `?tag=` lists the same posts in both languages.
+- **Owner lists** (`…/all`, Bearer) return the raw rows with the `*Es` fields and `translated`, which the panel shows as "Missing Spanish".
+- **Spanish slugs:** projects and posts accept an optional `slugEs` (same format and reserved words as `slug`, allowed without `titleEs` and equal to the item's own slug). The Spanish URL slug is `slugEs ?? slug` and is unique per collection (unique index on `coalesce(slug_es, slug)`): a collision answers 409 `This slug is already in use.` on `slugEs`. `GET /content/{projects,posts}/:slug?lang=es` matches the Spanish URL slug first, then an English slug whose item has a different `slugEs` (returned so the web can redirect); public responses carry `slug` and `slugEs`.
+- **Forms:** `POST /contact?lang=es` and `POST /testimonials?lang=es` answer every message in Spanish (success, honeypot, 400, malformed body, 429, 500, 502; table K-1 of the spec); without `lang` or with another value they answer in English. The owner's emails stay in English with a `Language: English|Spanish` line. A Spanish testimonial is stored as `roleEs`/`quoteEs` with empty English `role`/`quote`, which the owner must fill to approve it (400 with `fields`); an approved testimonial always keeps its English text.
+- The content DTOs are mirrored in `panel/lib/collections.ts`: any change to these fields updates that registry under the same spec.
+
 ### Testimonials
 Visitors submit testimonials with `POST /testimonials`; nothing they send is public until the owner approves it.
 
-- **Submission:** every field is trimmed; `name` and `role` are 1–100 characters on one line with at least one letter or digit, `email` a valid address of up to 200, `testimonial` 1–500 (line breaks kept). Any invalid field or a malformed body answers 400 `Please fill in all the fields with valid values.` and stores nothing; success answers 201 `Thanks! Your testimonial will appear once it has been reviewed.` A filled `website` honeypot gets the same 201 and nothing is stored or sent. The `testimonial` rate-limit bucket allows 3 submissions per IP in a rolling 24 hours (counted before the honeypot and validation, separate from the contact form) and answers 429 `Too many submissions. Please try again later.`
+- **Submission:** `?lang=es` stores the role and text as their Spanish versions and answers in Spanish (see [Languages](#languages)). Every field is trimmed; `name` and `role` are 1–100 characters on one line with at least one letter or digit, `email` a valid address of up to 200, `testimonial` 1–500 (line breaks kept). Any invalid field or a malformed body answers 400 `Please fill in all the fields with valid values.` and stores nothing; success answers 201 `Thanks! Your testimonial will appear once it has been reviewed.` A filled `website` honeypot gets the same 201 and nothing is stored or sent. The `testimonial` rate-limit bucket allows 3 submissions per IP in a rolling 24 hours (counted before the honeypot and validation, separate from the contact form) and answers 429 `Too many submissions. Please try again later.`
 - **Notification:** the owner receives an email from "Portfolio Testimonials" with the visitor as reply-to. If it cannot be sent (provider error or missing `brevo_api_key`), the testimonial is still stored, the visitor still gets 201 and the row is marked `notified: false`.
 - **Review:** a submission is stored with `status: "pending"`, `position: null`, its `email`, `language` and `submittedAt`. Public reads return only approved items (`id, position, quote, author, role, avatar, createdAt, updatedAt`), never the email or review fields.
 
@@ -124,6 +144,10 @@ env:
 ```bash
 psql "${DATABASE_URL%%\?*}" -v ON_ERROR_STOP=1 -f prisma/sql/initial-content.sql
 ```
+
+### Release order for the Spanish version (version 6.0.0)
+1. Run `pnpm prisma migrate deploy` against production **before** merging. `bilingual_content` adds the nullable `*_es` columns (existing content stays English), the unique `coalesce(slug_es, slug)` indexes on `project` and `post`, makes the testimonial `quote` and `role` nullable and adds a CHECK that approved testimonials keep them.
+2. Merge to `main`, which releases the API (before panel 5.0.0 and web 4.0.0).
 
 ### Release order for testimonial review (version 5.0.0)
 1. Run `pnpm prisma migrate deploy` against production **before** merging. `testimonial_review` adds the review columns (`status` defaults to `approved`, so every existing testimonial stays public), makes `position` and `avatar` nullable and adds the `language` CHECK constraint. Before releasing, list the quotes the 500-character limit affects with `SELECT id, length(quote) FROM testimonial WHERE length(quote) > 500;` (they are kept until edited).

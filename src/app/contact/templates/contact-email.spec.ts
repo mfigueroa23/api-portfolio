@@ -64,4 +64,10 @@ describe('contact email template', () => {
       'Hi &lt;b&gt;Marco&lt;/b&gt; &amp; team<br>second line',
     );
   });
+
+  it('shows Spanish as the language of a Spanish message, in English', () => {
+    expect(contactEmailHtml(visitor, 'es')).toContain('>Spanish<');
+    expect(contactEmailText(visitor, 'es')).toContain('Language: Spanish');
+    expect(contactEmailHtml(visitor, 'es')).toContain('Get In Touch');
+  });
 });

@@ -25,6 +25,7 @@ function guardsOf(method: keyof ContactInfoController): unknown {
 describe('ContactInfoController', () => {
   const service = {
     list: vi.fn(),
+    listAll: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     remove: vi.fn(),
@@ -70,5 +71,22 @@ describe('ContactInfoController', () => {
 
     await expect(controller.remove(1)).resolves.toBeUndefined();
     expect(service.remove).toHaveBeenCalledWith(1);
+  });
+
+  it('passes the requested language to the public list', async () => {
+    service.list.mockResolvedValue([]);
+
+    await controller.list({ lang: 'es' });
+    await controller.list({ lang: 'fr' as 'es' });
+    await controller.list();
+
+    expect(service.list.mock.calls).toEqual([['es'], ['en'], ['en']]);
+  });
+
+  it('lists every item for the owner behind JwtAuthGuard', async () => {
+    service.listAll.mockResolvedValue([row]);
+
+    await expect(controller.listAll()).resolves.toEqual([row]);
+    expect(guardsOf('listAll')).toEqual([JwtAuthGuard]);
   });
 });

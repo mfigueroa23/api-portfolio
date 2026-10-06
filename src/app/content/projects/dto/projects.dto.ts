@@ -15,8 +15,10 @@ import {
 } from 'class-validator';
 import { MAX_BODY_LENGTH } from '../../../markdown/dto/render-markdown.dto.js';
 import { EmptyToNull, HTTP_URL_OPTIONS } from '../../common/dto-transforms.js';
+import { LangQueryDto } from '../../common/lang.js';
 import {
   RESERVED_PROJECT_SLUGS,
+  SLUG_ES_FORMAT_MESSAGE,
   SLUG_FORMAT_MESSAGE,
   SLUG_MAX_LENGTH,
   SLUG_PATTERN,
@@ -35,6 +37,18 @@ export class ProjectDto {
   })
   slug: string;
 
+  // Spanish URL slug; same format and reserved words as `slug`, accepted
+  // without a Spanish title (RF-166–RF-168).
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(SLUG_MAX_LENGTH)
+  @Matches(SLUG_PATTERN, { message: SLUG_ES_FORMAT_MESSAGE })
+  @IsNotIn(RESERVED_PROJECT_SLUGS, {
+    message: `slugEs cannot be ${RESERVED_PROJECT_SLUGS.join(' or ')}`,
+  })
+  slugEs?: string | null;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)
@@ -43,8 +57,20 @@ export class ProjectDto {
   @EmptyToNull()
   @IsOptional()
   @IsString()
+  @MaxLength(200)
+  titleEs?: string | null;
+
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
   @MaxLength(5000)
   description?: string | null;
+
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  descriptionEs?: string | null;
 
   @EmptyToNull()
   @IsOptional()
@@ -75,9 +101,15 @@ export class ProjectDto {
   @IsString()
   @MaxLength(MAX_BODY_LENGTH)
   body?: string | null;
+
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_BODY_LENGTH)
+  bodyEs?: string | null;
 }
 
-export class ListProjectsQueryDto {
+export class ListProjectsQueryDto extends LangQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()

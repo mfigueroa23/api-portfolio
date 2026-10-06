@@ -187,4 +187,87 @@ describe('POST /contact (e2e)', () => {
       expect(response.headers['access-control-allow-origin']).toBeUndefined();
     });
   });
+
+  describe('Spanish (Spec 004 phase 3)', () => {
+    const postLang = (
+      body: object | string,
+      lang: string,
+      ip = '203.0.113.30',
+    ) =>
+      request(app.getHttpServer())
+        .post(`/contact?lang=${lang}`)
+        .set('CF-Connecting-IP', ip)
+        .set('content-type', 'application/json')
+        .send(typeof body === 'string' ? body : JSON.stringify(body));
+
+    it('answers success, invalid and malformed bodies in Spanish for lang=es', async () => {
+      const ok = await postLang(valid, 'es');
+      const invalid = await postLang({ ...valid, email: 'bad' }, 'es');
+      const malformed = await postLang('{"name":', 'es');
+      const honeypot = await postLang({ ...valid, website: 'x' }, 'es');
+
+      expect(ok.status).toBe(200);
+      expect(ok.body).toEqual({
+        message: '¡Mensaje enviado! Te responderé pronto.',
+      });
+      expect(invalid.status).toBe(400);
+      expect(invalid.body).toEqual({
+        error: 'Completa todos los campos con valores válidos.',
+      });
+      expect(malformed.body).toEqual(invalid.body);
+      expect(honeypot.body).toEqual(ok.body);
+    });
+
+    it('answers the 429 in Spanish for lang=es', async () => {
+      for (let i = 0; i < 5; i++) await postLang(valid, 'es');
+
+      const response = await postLang(valid, 'es');
+
+      expect(response.status).toBe(429);
+      expect(response.body).toEqual({
+        error: 'Demasiados mensajes. Inténtalo más tarde.',
+      });
+    });
+
+    it('answers 500 and 502 in Spanish for lang=es', async () => {
+      sendEmail.mockRejectedValueOnce(
+        new BadGatewayException(
+          'Failed to send the message. Please try again later.',
+        ),
+      );
+      const failed = await postLang(valid, 'es');
+      await prisma.property.delete({ where: { key: 'brevo_api_key' } });
+      const unavailable = await postLang(valid, 'es');
+
+      expect(failed.status).toBe(502);
+      expect(failed.body).toEqual({
+        error: 'No se pudo enviar el mensaje. Inténtalo más tarde.',
+      });
+      expect(unavailable.status).toBe(500);
+      expect(unavailable.body).toEqual({
+        error: 'El servicio de contacto no está disponible.',
+      });
+    });
+
+    it.each(['fr', 'en', ''])(
+      'answers in English for lang=%j',
+      async (lang) => {
+        const response = await postLang({ ...valid, email: 'bad' }, lang);
+
+        expect(response.body).toEqual(INVALID);
+      },
+    );
+
+    it('writes "Language: Spanish" in the owner email, in English', async () => {
+      await postLang(valid, 'es');
+
+      expect(sendEmail).toHaveBeenCalledWith(
+        BREVO_KEY,
+        expect.objectContaining({
+          subject: 'New portfolio message from Ada',
+          text: expect.stringContaining('Language: Spanish') as string,
+        }),
+      );
+    });
+  });
 });
