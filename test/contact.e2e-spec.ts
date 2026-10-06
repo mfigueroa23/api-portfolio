@@ -1,7 +1,7 @@
 import { BadGatewayException, INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
-import { BrevoClient } from '../src/app/contact/clients/brevo.client.js';
+import { BrevoClient } from '../src/app/mail/brevo.client.js';
 import { PrismaFake } from './fakes/prisma.fake.js';
 import { createTestApp } from './utils/create-test-app.js';
 

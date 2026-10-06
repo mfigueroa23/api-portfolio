@@ -1,6 +1,5 @@
-import { HttpException } from '@nestjs/common';
-import { PropertiesService } from '../properties/properties.service.js';
-import { BrevoClient } from './clients/brevo.client.js';
+import { BadGatewayException, HttpException } from '@nestjs/common';
+import { MailService, MailUnavailableError } from '../mail/mail.service.js';
 import { ContactService } from './contact.service.js';
 import {
   contactEmailHtml,
@@ -15,26 +14,19 @@ const visitor = {
 };
 
 describe('ContactService', () => {
-  const get = vi.fn();
-  const sendEmail = vi.fn();
-  const service = new ContactService(
-    { get } as unknown as PropertiesService,
-    { sendEmail } as unknown as BrevoClient,
-  );
+  const send = vi.fn();
+  const service = new ContactService({ send } as unknown as MailService);
 
   beforeEach(() => {
-    get.mockReset();
-    sendEmail.mockReset().mockResolvedValue(undefined);
+    send.mockReset().mockResolvedValue(undefined);
   });
 
-  it('sends the templated email once with the stored Brevo key', async () => {
-    get.mockResolvedValue('stored-key');
-
+  it('sends the templated email once as "Portfolio Contact"', async () => {
     await service.send(visitor);
 
-    expect(get).toHaveBeenCalledWith('brevo_api_key');
-    expect(sendEmail).toHaveBeenCalledTimes(1);
-    expect(sendEmail).toHaveBeenCalledWith('stored-key', {
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith({
+      senderName: 'Portfolio Contact',
       replyTo: { name: 'Ada', email: 'ada@example.com' },
       subject: contactEmailSubject(visitor),
       html: contactEmailHtml(visitor),
@@ -42,16 +34,23 @@ describe('ContactService', () => {
     });
   });
 
-  it('answers 500 and sends nothing when the key is not configured', async () => {
-    get.mockResolvedValue(null);
+  it('answers 500 when the mail service is not configured', async () => {
+    send.mockRejectedValue(new MailUnavailableError());
 
-    const error = await service.send(visitor).catch((e) => e);
+    const error = await service.send(visitor).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(HttpException);
     expect((error as HttpException).getStatus()).toBe(500);
     expect((error as HttpException).message).toBe(
       'The contact service is not available.',
     );
-    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('propagates provider failures (502)', async () => {
+    send.mockRejectedValue(new BadGatewayException('down'));
+
+    await expect(service.send(visitor)).rejects.toBeInstanceOf(
+      BadGatewayException,
+    );
   });
 });

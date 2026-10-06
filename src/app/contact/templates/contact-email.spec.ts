@@ -1,3 +1,4 @@
+import { palette } from '../../mail/templates/palette.js';
 import {
   contactEmailHtml,
   contactEmailSubject,
@@ -17,9 +18,36 @@ describe('contact email template', () => {
     );
   });
 
-  it('keeps the literal content in the text version', () => {
+  it('keeps the literal content in the text version with the language line and footer', () => {
     expect(contactEmailText(visitor)).toBe(
-      `New message from your portfolio\n\nName: ${visitor.name}\nEmail: ${visitor.email}\n\n${visitor.message}`,
+      `New message from your portfolio\n\nName: ${visitor.name}\nEmail: ${visitor.email}\nLanguage: English\n\n${visitor.message}\n\n--\nSent from the contact form of marco.figueroa-sanchez.com (https://marco.figueroa-sanchez.com)`,
+    );
+  });
+
+  it('keeps the eyebrow, heading, labels and button text', () => {
+    const html = contactEmailHtml({ ...visitor, name: 'Ada' });
+
+    expect(html).toContain('Get In Touch');
+    expect(html).toMatch(/New message from <span[^>]*>Ada<\/span>/);
+    expect(html).toContain('>Name<');
+    expect(html).toContain('>Email<');
+    expect(html).toContain('>Message<');
+    expect(html).toContain('>Reply to Ada</a>');
+  });
+
+  it('shows the language line and the contact form footer', () => {
+    const html = contactEmailHtml(visitor);
+
+    expect(html).toContain('>Language<');
+    expect(html).toContain('>English<');
+    expect(html).toContain(
+      `Sent from the contact form of <a href="https://marco.figueroa-sanchez.com" style="color:${palette.primary};`,
+    );
+  });
+
+  it('uses the shared dark layout', () => {
+    expect(contactEmailHtml(visitor)).toContain(
+      '<meta name="color-scheme" content="only dark">',
     );
   });
 
