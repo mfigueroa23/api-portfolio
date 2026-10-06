@@ -1,5 +1,5 @@
 # Portfolio API
-Backend for [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com), Marco Figueroa's personal portfolio. It serves the site content (about, experience, projects, certifications, blog posts, testimonials), renders their Markdown bodies, stores uploaded images and PDFs, and handles the contact form.
+Backend for [marco.figueroa-sanchez.com](https://marco.figueroa-sanchez.com), Marco Figueroa's personal portfolio. It serves the site content (about, experience, projects, certifications, blog posts, testimonials), renders their Markdown bodies, stores uploaded images and PDFs, and handles the contact form and visitor testimonial submissions.
 
 Live at [api.figueroa-sanchez.com](https://api.figueroa-sanchez.com).
 
@@ -23,9 +23,11 @@ pnpm start:dev        # http://localhost:3000 (override with PORT)
 | Method & route | Auth | Description |
 |---|---|---|
 | `GET /` | — | Health check `{ status: 'ok' }` |
-| `POST /contact` | — | Sends the contact form via Brevo (5 per IP per hour) |
+| `POST /contact?lang=` | — | Sends the contact form via Brevo (5 per IP per hour); messages in Spanish with `lang=es` |
+| `POST /testimonials?lang=` | — | Visitor testimonial `{ name, role, email, testimonial }` → 201, stored as pending for review (3 per IP per rolling 24 hours); see [Testimonials](#testimonials) |
 | `POST /auth/google` | — | Exchanges a Google ID token `{ credential }` of the authorized account for `{ accessToken, expiresIn: 3600 }` (5 attempts per IP per hour) |
-| `GET /content/<collection>` | — | Lists a collection ordered by `position` |
+| `GET /content/<collection>?lang=` | — | Lists a collection ordered by `position`, localized (see [Languages](#languages)) |
+| `GET /content/<collection>/all` | Bearer | Owner list of `experiences`, `certifications`, `highlights`, `contact-info` (and `testimonials`): raw rows with the Spanish fields and `translated` |
 | `POST /content/<collection>` | Bearer | Creates an item |
 | `PUT /content/<collection>/:id` | Bearer | Replaces an item |
 | `DELETE /content/<collection>/:id` | Bearer | Deletes an item |
@@ -36,7 +38,7 @@ pnpm start:dev        # http://localhost:3000 (override with PORT)
 | `GET /files/:id/references` | Bearer | Items whose fields contain the file URL, drafts included → `[{ collection, id, title, status? }]` |
 | `DELETE /files/:id` | Bearer | Deletes a file (204) |
 
-`<collection>` is one of `testimonials`, `highlights`, `social-links`, `technologies`, `contact-info` and `certifications`, plus `experiences` (same routes, ordered by `current` first, then `startDate` descending with undated entries last). Projects and posts have their own routes (see [Projects and posts](#projects-and-posts)). Errors always have the shape `{ error, fields? }`. CORS only allows the origins enabled in the `cors_origin` table (see [CORS origins](#cors-origins)).
+`<collection>` is one of `testimonials` (with review routes, see [Testimonials](#testimonials)), `highlights`, `social-links`, `technologies`, `contact-info` and `certifications`, plus `experiences` (same routes, ordered by `current` first, then `startDate` descending with undated entries last). Projects and posts have their own routes (see [Projects and posts](#projects-and-posts)). Errors always have the shape `{ error, fields? }`. CORS only allows the origins enabled in the `cors_origin` table (see [CORS origins](#cors-origins)).
 
 - **Experience** (`ExperienceDto`): no `position`; `startDate` (`YYYY-MM`, required, stored as the 1st of the month and returned as `YYYY-MM`, or `null` for entries created before Spec 003) and an optional Markdown `body`; the list adds `bodyHtml`.
 - **Certifications** (`CertificationDto`): `position`, `name`, `issuer`, `issueDate` and optional `expiryDate` as `YYYY-MM-DD` (calendar dates, returned unchanged; an expiry before the issue date is a field error on `expiryDate`), optional `credentialId`, `verificationUrl` and `fileUrl` (http(s)).
@@ -58,8 +60,49 @@ Projects and posts are drafts until published. Public routes never return drafts
 
 Post tags (up to 10, 1–30 letters, digits, spaces or hyphens) are trimmed and deduplicated ignoring case; `tagKeys` holds their keys (lowercase, spaces as hyphens), which the web uses in `/blog/tag/<key>`. References are up to 30 `{ title, url }` pairs.
 
+### Languages
+The site is in English and Spanish (Spec 004). Every text visitors read has an English field and an optional Spanish `<field>Es` with the same validators and limits (`""` stored as null); names, companies, issuers, technologies, tags, URLs, dates, images and files are shared. Content from before Spec 004 is English with no Spanish version.
+
+| Collection | Spanish fields |
+|---|---|
+| projects | `titleEs`, `descriptionEs`, `bodyEs`, `slugEs` |
+| posts | `titleEs`, `summaryEs`, `bodyEs`, `slugEs`, `references[].titleEs` |
+| experiences | `periodEs`, `roleEs`, `descriptionEs`, `bodyEs` |
+| certifications | `nameEs` |
+| highlights | `titleEs`, `descriptionEs` |
+| contact-info | `labelEs` |
+| testimonials | `quoteEs`, `roleEs` |
+
+- **`?lang=en|es`** on every public read (lists, details, `posts/feed`; anything else is English): an item is returned in Spanish only when it is *translated* (every bilingual field with an English value has a Spanish one, and every reference title a `titleEs`); otherwise every field is English. Each item carries `lang` (`"en"` or `"es"`) and never the `*Es` fields; Markdown, `toc` and `readingMinutes` come from the body shown. Tags are shared, so `?tag=` lists the same posts in both languages.
+- **Owner lists** (`…/all`, Bearer) return the raw rows with the `*Es` fields and `translated`, which the panel shows as "Missing Spanish".
+- **Spanish slugs:** projects and posts accept an optional `slugEs` (same format and reserved words as `slug`, allowed without `titleEs` and equal to the item's own slug). The Spanish URL slug is `slugEs ?? slug` and is unique per collection (unique index on `coalesce(slug_es, slug)`): a collision answers 409 `This slug is already in use.` on `slugEs`. `GET /content/{projects,posts}/:slug?lang=es` matches the Spanish URL slug first, then an English slug whose item has a different `slugEs` (returned so the web can redirect); public responses carry `slug` and `slugEs`.
+- **Forms:** `POST /contact?lang=es` and `POST /testimonials?lang=es` answer every message in Spanish (success, honeypot, 400, malformed body, 429, 500, 502; table K-1 of the spec); without `lang` or with another value they answer in English. The owner's emails stay in English with a `Language: English|Spanish` line. A Spanish testimonial is stored as `roleEs`/`quoteEs` with empty English `role`/`quote`, which the owner must fill to approve it (400 with `fields`); an approved testimonial always keeps its English text.
+- The content DTOs are mirrored in `panel/lib/collections.ts`: any change to these fields updates that registry under the same spec.
+
+### Testimonials
+Visitors submit testimonials with `POST /testimonials`; nothing they send is public until the owner approves it.
+
+- **Submission:** `?lang=es` stores the role and text as their Spanish versions and answers in Spanish (see [Languages](#languages)). Every field is trimmed; `name` and `role` are 1–100 characters on one line with at least one letter or digit, `email` a valid address of up to 200, `testimonial` 1–500 (line breaks kept). Any invalid field or a malformed body answers 400 `Please fill in all the fields with valid values.` and stores nothing; success answers 201 `Thanks! Your testimonial will appear once it has been reviewed.` A filled `website` honeypot gets the same 201 and nothing is stored or sent. The `testimonial` rate-limit bucket allows 3 submissions per IP in a rolling 24 hours (counted before the honeypot and validation, separate from the contact form) and answers 429 `Too many submissions. Please try again later.`
+- **Notification:** the owner receives an email from "Portfolio Testimonials" with the visitor as reply-to. If it cannot be sent (provider error or missing `brevo_api_key`), the testimonial is still stored, the visitor still gets 201 and the row is marked `notified: false`.
+- **Review:** a submission is stored with `status: "pending"`, `position: null`, its `email`, `language` and `submittedAt`. Public reads return only approved items (`id, position, quote, author, role, avatar, createdAt, updatedAt`), never the email or review fields.
+
+| Method & route | Auth | Description |
+|---|---|---|
+| `GET /content/testimonials` | — | Approved testimonials by `position`, then `id` |
+| `GET /content/testimonials/all` | Bearer | Pending items first (newest submission first), then approved ones by `position`, with `status`, `email`, `language`, `notified` and `submittedAt` |
+| `GET /content/testimonials/pending-count` | Bearer | `{ count }` of pending items |
+| `POST /content/testimonials` | Bearer | Owner create `{ quote, author, role, avatar? }` (no `position`): public at once and placed first |
+| `PUT /content/testimonials/:id` | Bearer | Edit (`position?` too); never changes `status` or `email`, so a pending item stays pending |
+| `POST /content/testimonials/:id/approve` | Bearer | Stores the form values, deletes the email and places the item first (200); an approved item is returned unchanged; 400 field errors, 404 missing |
+| `DELETE /content/testimonials/:id` | Bearer | Delete; for a pending item this is the rejection (204, 404 missing) |
+
+Placing an item first shifts every approved item down one position in the same transaction, so the owner's relative order is kept. `quote` is limited to 500 characters on every write (older, longer quotes are kept until edited); `avatar` is optional (an http(s) URL of up to 500 characters, `""` stored as null).
+
 ### Markdown
 Bodies (projects, experience, posts) are Markdown rendered only by the API (`markdown-it` with raw HTML disabled, plus `highlight.js`): tables, task lists, strikethrough, highlighted code, `mermaid` fences as escaped source inside `figure.md-mermaid` (drawn by the web and panel), external links in a new tab, lazy images, unique `id`s on h2/h3 for the table of contents, and a reading time of words outside code / 200, at least 1 minute. JSON bodies may be up to 512 KiB on the content routes that carry Markdown and on `/markdown/render`, 16 KiB elsewhere.
+
+### Emails
+The owner's emails go through Brevo from the `mail` module (`src/app/mail`): `MailService` reads `brevo_api_key` on every send and `BrevoClient` posts the email from `contact@figueroa-sanchez.com` with a display name per form (`Portfolio Contact`) to the owner, with the visitor as reply-to. Every email uses one HTML layout (`mail/templates/email-layout.ts`) with the web's dark palette, `color-scheme: only dark` metadata and an explicit background on every cell so Apple Mail does not invert it, text contrast of at least 4.5:1 (checked by its spec), no remote images, a `Language:` line and a footer linking to the site, plus a plain-text part with the same content.
 
 ### Files
 Uploads are stored in the `file` table (`bytea`), not on disk or an external service. The type is detected from the content (magic bytes), never from the name or `Content-Type`. File URLs are absolute, built from `API_PUBLIC_URL` (default `https://api.figueroa-sanchez.com`; set it in `.env` for local runs, e.g. `http://localhost:3000`) and never change. `GET /files/:id` is public and answers with the exact type, `X-Content-Type-Options: nosniff`, a `Content-Security-Policy` ending in `sandbox` (so scripts in an uploaded SVG never run when its URL is opened), `Cache-Control: public, max-age=31536000, immutable` and `Cross-Origin-Resource-Policy: cross-origin`.
@@ -102,6 +145,14 @@ env:
 psql "${DATABASE_URL%%\?*}" -v ON_ERROR_STOP=1 -f prisma/sql/initial-content.sql
 ```
 
+### Release order for the Spanish version (version 6.0.0)
+1. Run `pnpm prisma migrate deploy` against production **before** merging. `bilingual_content` adds the nullable `*_es` columns (existing content stays English), the unique `coalesce(slug_es, slug)` indexes on `project` and `post`, makes the testimonial `quote` and `role` nullable and adds a CHECK that approved testimonials keep them.
+2. Merge to `main`, which releases the API (before panel 5.0.0 and web 4.0.0).
+
+### Release order for testimonial review (version 5.0.0)
+1. Run `pnpm prisma migrate deploy` against production **before** merging. `testimonial_review` adds the review columns (`status` defaults to `approved`, so every existing testimonial stays public), makes `position` and `avatar` nullable and adds the `language` CHECK constraint. Before releasing, list the quotes the 500-character limit affects with `SELECT id, length(quote) FROM testimonial WHERE length(quote) > 500;` (they are kept until edited).
+2. Merge to `main`, which releases the API (before panel 4.0.0 and web 3.1.0).
+
 ### Release order for content pages (version 4.0.0)
 1. Run `pnpm prisma migrate deploy` against production. `content_pages` publishes every existing project, sets publication dates that keep the old `position` order and proposes slugs from the titles; `drop_content_position` removes `position` from projects and experience.
 2. Merge to `main`, which releases the API (before the web and panel versions that use the new endpoints).
@@ -131,7 +182,7 @@ The `property` table holds the application secrets. They are read on every reque
 
 | Key | Used for |
 |---|---|
-| `brevo_api_key` | Sending the contact email through Brevo. Missing → `POST /contact` answers 500. |
+| `brevo_api_key` | Sending the owner's emails through Brevo. Missing → `POST /contact` answers 500; `POST /testimonials` still stores the testimonial, marked `notified: false`. |
 | `jwt_secret` | Signing and verifying the admin tokens. Missing → sign-in and writes answer 500. Changing it invalidates every issued token. |
 | `google_client_id` | OAuth web client ID of the panel, the audience every Google ID token must be issued for. Not secret. Missing → `POST /auth/google` answers 500. |
 | `admin_google_email` | Google email of the only authorized administrator. Missing → `POST /auth/google` answers 500. |

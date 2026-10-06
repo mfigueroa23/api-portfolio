@@ -130,10 +130,12 @@ const collections: Collection[] = [
       quote: 'Great work.',
       author: 'Grace Hopper',
       role: 'Admiral',
-      avatar: '/avatars/grace.png',
+      avatar: 'https://api.figueroa-sanchez.com/files/grace',
     },
     textField: 'quote',
-    requiredFields: ['position', 'quote', 'author', 'role', 'avatar'],
+    // Spec 004: the photo is optional and creation takes no position (the
+    // item is placed first); edits keep `position`.
+    requiredFields: ['quote', 'author', 'role'],
     tooLong: { field: 'author', max: 200 },
   },
   {
@@ -595,4 +597,158 @@ describe('collection-specific validation (e2e)', () => {
       expect(Object.keys(response.body.fields)).toEqual([field]);
     });
   });
+});
+
+describe('bilingual simple collections (e2e, Spec 004 phase 3)', () => {
+  let app: INestApplication<App>;
+  let prisma: PrismaFake;
+  let token: string;
+
+  beforeEach(async () => {
+    ({ app, prisma } = await createTestApp());
+    await prisma.property.create({
+      data: { key: 'jwt_secret', value: SECRET },
+    });
+    token = await new JwtService().signAsync(
+      { sub: 'owner' },
+      { secret: SECRET, expiresIn: '1h' },
+    );
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  const server = () => request(app.getHttpServer());
+  const post = (path: string, body: object) =>
+    server()
+      .post(`/content/${path}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(body);
+
+  const cases = [
+    {
+      path: 'experiences',
+      item: {
+        period: 'Jan 2026 — Present',
+        role: 'Engineer',
+        company: 'Acme',
+        description: 'Builds things.',
+        technologies: [],
+        current: true,
+        startDate: '2026-01',
+        body: 'Shipped.',
+      },
+      spanish: {
+        periodEs: 'Ene 2026 — Actual',
+        roleEs: 'Ingeniero',
+        descriptionEs: 'Construye cosas.',
+        bodyEs: 'Entregado.',
+      },
+      shown: { role: 'Ingeniero', bodyHtml: '<p>Entregado.</p>\n' },
+      english: { role: 'Engineer' },
+      partial: { roleEs: 'Ingeniero' },
+      tooLong: { periodEs: 101, roleEs: 201 },
+    },
+    {
+      path: 'certifications',
+      item: {
+        position: 0,
+        name: 'CKA',
+        issuer: 'CNCF',
+        issueDate: '2025-03-14',
+      },
+      spanish: { nameEs: 'Administrador de Kubernetes' },
+      shown: { name: 'Administrador de Kubernetes', issuer: 'CNCF' },
+      english: { name: 'CKA' },
+      partial: null,
+      tooLong: { nameEs: 201 },
+    },
+    {
+      path: 'highlights',
+      item: {
+        position: 0,
+        icon: 'fa-solid fa-code',
+        title: 'Clean Code',
+        description: 'Readable code.',
+      },
+      spanish: { titleEs: 'Código limpio', descriptionEs: 'Código legible.' },
+      shown: { title: 'Código limpio', icon: 'fa-solid fa-code' },
+      english: { title: 'Clean Code' },
+      partial: { titleEs: 'Código limpio' },
+      tooLong: { titleEs: 201, descriptionEs: 5001 },
+    },
+    {
+      path: 'contact-info',
+      item: {
+        position: 0,
+        icon: 'fa-solid fa-envelope',
+        label: 'Email',
+        value: 'me@example.com',
+        href: 'mailto:me@example.com',
+      },
+      spanish: { labelEs: 'Correo' },
+      shown: { label: 'Correo', value: 'me@example.com' },
+      english: { label: 'Email' },
+      partial: null,
+      tooLong: { labelEs: 101 },
+    },
+  ];
+
+  describe.each(cases)(
+    '/content/$path',
+    ({ path, item, spanish, shown, english, partial, tooLong }) => {
+      it('serves Spanish with lang "es" only for translated items', async () => {
+        await post(path, { ...item, ...spanish });
+        if (partial) await post(path, { ...item, ...partial });
+
+        const es = await server().get(`/content/${path}?lang=es`);
+        const en = await server().get(`/content/${path}`);
+
+        expect(es.status).toBe(200);
+        expect(es.body[0]).toMatchObject({ ...shown, lang: 'es' });
+        if (partial) {
+          expect(es.body[1]).toMatchObject({ ...english, lang: 'en' });
+        }
+        expect(en.body[0]).toMatchObject({ ...english, lang: 'en' });
+        for (const key of Object.keys(spanish)) {
+          expect(es.body[0]).not.toHaveProperty(key);
+        }
+      });
+
+      it('answers 400 for Spanish values over the English limits', async () => {
+        const response = await post(path, {
+          ...item,
+          ...Object.fromEntries(
+            Object.entries(tooLong).map(([key, length]) => [
+              key,
+              'a'.repeat(length),
+            ]),
+          ),
+        });
+
+        expect(response.status).toBe(400);
+        expect(Object.keys(response.body.fields).sort()).toEqual(
+          Object.keys(tooLong).sort(),
+        );
+      });
+
+      it('lists every item for the owner with its Spanish fields and translated', async () => {
+        await post(path, { ...item, ...spanish });
+        await post(path, item);
+
+        const anonymous = await server().get(`/content/${path}/all`);
+        const response = await server()
+          .get(`/content/${path}/all`)
+          .set('Authorization', `Bearer ${token}`);
+
+        expect(anonymous.status).toBe(401);
+        expect(response.status).toBe(200);
+        expect(response.body).toMatchObject([
+          { ...spanish, translated: true },
+          { translated: false },
+        ]);
+      });
+    },
+  );
 });

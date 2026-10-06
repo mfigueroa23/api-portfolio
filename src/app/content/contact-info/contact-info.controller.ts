@@ -9,12 +9,18 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
+import { LangQueryDto, langOf } from '../common/lang.js';
 import { ContactInfo } from '../../../generated/prisma/client.js';
 import { ContactInfoDto } from './dto/contact-info.dto.js';
 import { ContactInfoService } from './contact-info.service.js';
+import type {
+  AdminContactInfo,
+  LocalizedContactInfo,
+} from './contact-info.service.js';
 
 // Reading is public; writing requires the administrator's token.
 @Controller('content/contact-info')
@@ -22,8 +28,14 @@ export class ContactInfoController {
   constructor(private readonly service: ContactInfoService) {}
 
   @Get()
-  list(): Promise<ContactInfo[]> {
-    return this.service.list();
+  list(@Query() query?: LangQueryDto): Promise<LocalizedContactInfo[]> {
+    return this.service.list(langOf(query));
+  }
+
+  @Get('all')
+  @UseGuards(JwtAuthGuard)
+  listAll(): Promise<AdminContactInfo[]> {
+    return this.service.listAll();
   }
 
   @Post()

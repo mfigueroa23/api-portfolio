@@ -289,4 +289,165 @@ describe('PrismaFake', () => {
       2, 4, 1, 3,
     ]);
   });
+
+  describe('testimonials (Spec 004)', () => {
+    it('applies the schema defaults: approved, notified, nullable columns', async () => {
+      const row = await prisma.testimonial.create({
+        data: { quote: 'q', author: 'a', role: 'r' },
+      });
+
+      expect(row).toMatchObject({
+        status: 'approved',
+        notified: true,
+        position: null,
+        avatar: null,
+        email: null,
+        language: null,
+        submittedAt: null,
+      });
+    });
+
+    it('keeps an explicit pending status and null position', async () => {
+      const row = await prisma.testimonial.create({
+        data: { quote: 'q', author: 'a', role: 'r', status: 'pending' },
+      });
+
+      expect(row).toMatchObject({ status: 'pending', position: null });
+      expect(
+        await prisma.testimonial.count({ where: { status: 'pending' } }),
+      ).toBe(1);
+    });
+
+    it('increments a column with updateMany only on matching rows', async () => {
+      for (const [position, status] of [
+        [0, 'approved'],
+        [1, 'approved'],
+        [null, 'pending'],
+      ] as const) {
+        await prisma.testimonial.create({
+          data: { quote: 'q', author: 'a', role: 'r', position, status },
+        });
+      }
+
+      const result = await prisma.testimonial.updateMany({
+        where: { status: 'approved' },
+        data: { position: { increment: 1 } },
+      });
+
+      expect(result).toEqual({ count: 2 });
+      expect(prisma.testimonial.rows.map((row) => row.position)).toEqual([
+        1,
+        2,
+        null,
+      ]);
+    });
+
+    it('leaves null values null when incrementing, like SQL', async () => {
+      await prisma.testimonial.create({
+        data: { quote: 'q', author: 'a', role: 'r', position: null },
+      });
+
+      await prisma.testimonial.updateMany({
+        data: { position: { increment: 1 } },
+      });
+
+      expect(prisma.testimonial.rows[0].position).toBeNull();
+    });
+
+    it('leaves fields set to undefined unchanged on update, like Prisma', async () => {
+      const row = await prisma.testimonial.create({
+        data: { quote: 'q', author: 'a', role: 'r', position: 3 },
+      });
+
+      await prisma.testimonial.update({
+        where: { id: row.id },
+        data: { quote: 'new', position: undefined },
+      });
+
+      expect(prisma.testimonial.rows[0]).toMatchObject({
+        quote: 'new',
+        position: 3,
+      });
+    });
+
+    it('returns only the selected fields with findMany select', async () => {
+      await prisma.testimonial.create({
+        data: { quote: 'q', author: 'a', role: 'r', email: 'a@b.co' },
+      });
+
+      expect(
+        await prisma.testimonial.findMany({
+          select: { id: true, author: true, email: false },
+        }),
+      ).toEqual([{ id: 1, author: 'a' }]);
+    });
+  });
+
+  describe.each(['project', 'post'] as const)(
+    'Spanish URL slug index on %s (Spec 004)',
+    (model) => {
+      const create = (data: Record<string, unknown>) =>
+        prisma[model].create({ data: { title: 't', ...data } });
+
+      it('throws P2002 on url_slug_es when slugEs equals another slug without slugEs', async () => {
+        await create({ slug: 'hello' });
+
+        await expect(
+          create({ slug: 'other', slugEs: 'hello' }),
+        ).rejects.toMatchObject({
+          code: 'P2002',
+          meta: { target: ['url_slug_es'] },
+        });
+      });
+
+      it('throws P2002 when the English slug equals another Spanish slug', async () => {
+        await create({ slug: 'a', slugEs: 'hola' });
+
+        await expect(create({ slug: 'hola' })).rejects.toMatchObject({
+          code: 'P2002',
+          meta: { target: ['url_slug_es'] },
+        });
+      });
+
+      it('throws P2002 on update too, but allows slugEs equal to its own slug', async () => {
+        const own = await create({ slug: 'mine' });
+        await create({ slug: 'theirs', slugEs: 'suyo' });
+
+        await expect(
+          prisma[model].update({
+            where: { id: own.id },
+            data: { slugEs: 'mine' },
+          }),
+        ).resolves.toMatchObject({ slugEs: 'mine' });
+        await expect(
+          prisma[model].update({
+            where: { id: own.id },
+            data: { slugEs: 'suyo' },
+          }),
+        ).rejects.toMatchObject({ code: 'P2002' });
+      });
+
+      it('allows a slug whose Spanish URL slug is the Spanish slug of the same row', async () => {
+        await create({ slug: 'a', slugEs: 'b' });
+
+        await expect(
+          create({ slug: 'a2', slugEs: 'b2' }),
+        ).resolves.toBeTruthy();
+      });
+    },
+  );
+
+  it('supports OR conditions and findFirst', async () => {
+    await prisma.post.create({ data: { slug: 'a', title: 'A', slugEs: 'x' } });
+    await prisma.post.create({ data: { slug: 'b', title: 'B' } });
+
+    const found = await prisma.post.findFirst({
+      where: { OR: [{ slugEs: 'b' }, { slugEs: null, slug: 'b' }] },
+    });
+
+    expect(found).toMatchObject({ slug: 'b' });
+    expect(
+      await prisma.post.findFirst({ where: { OR: [{ slug: 'none' }] } }),
+    ).toBeNull();
+  });
 });

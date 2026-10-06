@@ -6,9 +6,7 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
-
-// Same pattern the web's contact form used before moving to the API.
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { EMAIL_PATTERN } from '../../common/validation/email.js';
 
 const trim = ({ value }: TransformFnParams): unknown =>
   typeof value === 'string' ? value.trim() : value;

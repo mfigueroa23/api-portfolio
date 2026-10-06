@@ -15,8 +15,10 @@ import {
 } from 'class-validator';
 import { MAX_BODY_LENGTH } from '../../../markdown/dto/render-markdown.dto.js';
 import { EmptyToNull, HTTP_URL_OPTIONS } from '../../common/dto-transforms.js';
+import { LangQueryDto } from '../../common/lang.js';
 import {
   RESERVED_POST_SLUGS,
+  SLUG_ES_FORMAT_MESSAGE,
   SLUG_FORMAT_MESSAGE,
   SLUG_MAX_LENGTH,
   SLUG_PATTERN,
@@ -30,6 +32,12 @@ export class PostReferenceDto {
   @IsNotEmpty()
   @MaxLength(200)
   title: string;
+
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  titleEs?: string | null;
 
   @IsUrl(HTTP_URL_OPTIONS)
   @MaxLength(500)
@@ -45,6 +53,12 @@ export class PostDto {
   @MaxLength(200)
   title: string;
 
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  titleEs?: string | null;
+
   @IsString()
   @MaxLength(SLUG_MAX_LENGTH)
   @Matches(SLUG_PATTERN, { message: SLUG_FORMAT_MESSAGE })
@@ -53,11 +67,29 @@ export class PostDto {
   })
   slug: string;
 
+  // Spanish URL slug; same format and reserved words as `slug`, accepted
+  // without a Spanish title (RF-166–RF-168).
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(SLUG_MAX_LENGTH)
+  @Matches(SLUG_PATTERN, { message: SLUG_ES_FORMAT_MESSAGE })
+  @IsNotIn(RESERVED_POST_SLUGS, {
+    message: `slugEs cannot be ${RESERVED_POST_SLUGS.join(' or ')}`,
+  })
+  slugEs?: string | null;
+
   @EmptyToNull()
   @IsOptional()
   @IsString()
   @MaxLength(300)
   summary?: string | null;
+
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  summaryEs?: string | null;
 
   @EmptyToNull()
   @IsOptional()
@@ -81,6 +113,12 @@ export class PostDto {
   @MaxLength(MAX_BODY_LENGTH)
   body?: string | null;
 
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_BODY_LENGTH)
+  bodyEs?: string | null;
+
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(30)
@@ -89,7 +127,7 @@ export class PostDto {
   references?: PostReferenceDto[];
 }
 
-export class ListPostsQueryDto {
+export class ListPostsQueryDto extends LangQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()

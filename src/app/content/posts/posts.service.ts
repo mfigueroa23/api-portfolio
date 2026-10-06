@@ -3,7 +3,14 @@ import { PrismaService } from '../../database/prisma.service.js';
 import { Post, Prisma } from '../../../generated/prisma/client.js';
 import { MarkdownService, TocEntry } from '../../markdown/markdown.service.js';
 import { assertComplete, publish, unpublish } from '../common/publishable.js';
-import { assertSlugFree } from '../common/slug.js';
+import type { Lang } from '../common/lang.js';
+import { assertSlugFree, assertUrlSlugFree } from '../common/slug.js';
+import {
+  BILINGUAL_FIELDS,
+  isTranslated,
+  localize,
+  Localized,
+} from '../common/translation.js';
 import { PostDto } from './dto/post.dto.js';
 
 const PAGE_SIZE = 10;
@@ -16,8 +23,15 @@ const BY_PUBLICATION: Prisma.PostOrderByWithRelationInput[] = [
 ];
 const PUBLISHED = { status: 'published' as const };
 
-export type PostSummary = Omit<Post, 'body'> & { readingMinutes: number };
-export type PostDetail = Post & {
+const FIELDS = BILINGUAL_FIELDS.posts;
+type LocalizedPost = Localized<Post, (typeof FIELDS)[number]>;
+
+// Public reads carry `slug` and `slugEs` so the web can build both URLs.
+export type PostSummary = Omit<LocalizedPost, 'body'> & {
+  readingMinutes: number;
+};
+export type AdminPost = Post & { translated: boolean };
+export type PostDetail = LocalizedPost & {
   bodyHtml: string;
   toc: TocEntry[];
   readingMinutes: number;
@@ -57,13 +71,19 @@ export function normalizeTags(raw: string[] | undefined): {
 function toData(dto: PostDto) {
   return {
     title: dto.title,
+    titleEs: dto.titleEs ?? null,
     slug: dto.slug,
+    slugEs: dto.slugEs ?? null,
     summary: dto.summary ?? null,
+    summaryEs: dto.summaryEs ?? null,
     coverUrl: dto.coverUrl ?? null,
     ...normalizeTags(dto.tags),
     body: dto.body ?? null,
-    references: (dto.references ?? []).map(({ title, url }) => ({
+    bodyEs: dto.bodyEs ?? null,
+    // titleEs is kept only when given, so older references stay unchanged.
+    references: (dto.references ?? []).map(({ title, titleEs, url }) => ({
       title,
+      ...(titleEs ? { titleEs } : {}),
       url,
     })),
   };
@@ -78,9 +98,11 @@ export class PostsService {
 
   // Public listing: 10 per page, newest first. A page past the last one or a
   // tag without published posts is 404; page 1 of an empty blog is not.
+  // Tags are shared, so a Spanish tag page lists the same posts (RF-165).
   async listPublished(query: {
     page: number;
     tag?: string;
+    lang?: Lang;
   }): Promise<PostPage> {
     const key = query.tag === undefined ? undefined : tagKey(query.tag);
     const where: Prisma.PostWhereInput = key
@@ -104,7 +126,7 @@ export class PostsService {
     const tag =
       key && first ? (first.tags[first.tagKeys.indexOf(key)] ?? key) : null;
     return {
-      items: posts.map((post) => this.toSummary(post)),
+      items: posts.map((post) => this.toSummary(post, query.lang ?? 'en')),
       page: query.page,
       totalPages,
       total,
@@ -112,37 +134,55 @@ export class PostsService {
     };
   }
 
-  async feed(): Promise<PostSummary[]> {
+  // The Spanish feed has every published post, in Spanish when translated
+  // (RF-144).
+  async feed(lang: Lang = 'en'): Promise<PostSummary[]> {
     const posts = await this.prisma.post.findMany({
       where: PUBLISHED,
       orderBy: BY_PUBLICATION,
       take: FEED_SIZE,
     });
-    return posts.map((post) => this.toSummary(post));
+    return posts.map((post) => this.toSummary(post, lang));
   }
 
   // Admin: drafts first (never published ones on top), then published.
-  listAll(): Promise<Post[]> {
-    return this.prisma.post.findMany({
+  async listAll(): Promise<AdminPost[]> {
+    const posts = await this.prisma.post.findMany({
       orderBy: [
         { status: 'asc' },
         { publishedAt: { sort: 'desc', nulls: 'first' } },
         { id: 'desc' },
       ],
     });
+    return posts.map((post) => ({
+      ...post,
+      translated: isTranslated(post, FIELDS),
+    }));
   }
 
-  async findPublishedBySlug(slug: string): Promise<PostDetail> {
-    const post = await this.prisma.post.findUnique({ where: { slug } });
+  // The html, table of contents and reading time come from the body of the
+  // language shown (RF-153, RF-158).
+  async findPublishedBySlug(
+    slug: string,
+    lang: Lang = 'en',
+  ): Promise<PostDetail> {
+    const post =
+      lang === 'es'
+        ? await this.findPublishedBySpanishSlug(slug)
+        : await this.prisma.post.findUnique({ where: { slug } });
     if (!post || post.status !== 'published') {
       throw new NotFoundException('Not found.');
     }
-    const { html, toc, readingMinutes } = this.markdown.render(post.body ?? '');
-    return { ...post, bodyHtml: html, toc, readingMinutes };
+    const localized = localize(post, FIELDS, lang);
+    const { html, toc, readingMinutes } = this.markdown.render(
+      localized.body ?? '',
+    );
+    return { ...localized, bodyHtml: html, toc, readingMinutes };
   }
 
   async create(dto: PostDto): Promise<Post> {
     await assertSlugFree(this.prisma.post, dto.slug);
+    await assertUrlSlugFree(this.prisma.post, dto);
     return this.prisma.post.create({
       data: { ...toData(dto), status: 'draft' },
     });
@@ -151,6 +191,7 @@ export class PostsService {
   async update(id: number, dto: PostDto): Promise<Post> {
     const existing = await this.findById(id);
     await assertSlugFree(this.prisma.post, dto.slug, id);
+    await assertUrlSlugFree(this.prisma.post, dto, id);
     const data = toData(dto);
     if (existing.status === 'published') {
       assertComplete(data, REQUIRED_TO_PUBLISH);
@@ -173,11 +214,26 @@ export class PostsService {
     await this.prisma.post.delete({ where: { id } });
   }
 
-  private toSummary({ body, ...post }: Post): PostSummary {
+  private toSummary(post: Post, lang: Lang): PostSummary {
+    const { body, ...summary } = localize(post, FIELDS, lang);
     return {
-      ...post,
+      ...summary,
       readingMinutes: this.markdown.render(body ?? '').readingMinutes,
     };
+  }
+
+  // RF-169, RF-175: the Spanish URL slug (slugEs, or slug without one) first;
+  // otherwise the English slug of a post that has a Spanish one, returned with
+  // both slugs so the web can redirect to the Spanish URL.
+  private async findPublishedBySpanishSlug(slug: string): Promise<Post | null> {
+    return (
+      (await this.prisma.post.findFirst({
+        where: { ...PUBLISHED, OR: [{ slugEs: slug }, { slugEs: null, slug }] },
+      })) ??
+      (await this.prisma.post.findFirst({
+        where: { ...PUBLISHED, slug, slugEs: { not: null } },
+      }))
+    );
   }
 
   private async findById(id: number): Promise<Post> {

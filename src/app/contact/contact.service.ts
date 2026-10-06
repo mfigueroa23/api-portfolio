@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { PropertiesService } from '../properties/properties.service.js';
-import { BrevoClient } from './clients/brevo.client.js';
+import { MailService, MailUnavailableError } from '../mail/mail.service.js';
+import { EmailLanguage } from '../mail/templates/email-layout.js';
 import { ContactMessage } from './interfaces/contact-message.interface.js';
 import {
   contactEmailHtml,
@@ -10,24 +10,29 @@ import {
 
 @Injectable()
 export class ContactService {
-  constructor(
-    private readonly properties: PropertiesService,
-    private readonly brevo: BrevoClient,
-  ) {}
+  constructor(private readonly mail: MailService) {}
 
-  async send(message: ContactMessage): Promise<void> {
-    const apiKey = await this.properties.get('brevo_api_key');
-    if (!apiKey) {
-      throw new InternalServerErrorException(
-        'The contact service is not available.',
-      );
+  // Provider failures (502) propagate as they are; a missing credential is a
+  // server-side misconfiguration, answered with 500.
+  async send(
+    message: ContactMessage,
+    language: EmailLanguage = 'en',
+  ): Promise<void> {
+    try {
+      await this.mail.send({
+        senderName: 'Portfolio Contact',
+        replyTo: { name: message.name, email: message.email },
+        subject: contactEmailSubject(message),
+        html: contactEmailHtml(message, language),
+        text: contactEmailText(message, language),
+      });
+    } catch (error) {
+      if (error instanceof MailUnavailableError) {
+        throw new InternalServerErrorException(
+          'The contact service is not available.',
+        );
+      }
+      throw error;
     }
-
-    await this.brevo.sendEmail(apiKey, {
-      replyTo: { name: message.name, email: message.email },
-      subject: contactEmailSubject(message),
-      html: contactEmailHtml(message),
-      text: contactEmailText(message),
-    });
   }
 }

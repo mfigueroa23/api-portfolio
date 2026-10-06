@@ -140,3 +140,58 @@ describe('PostDto', () => {
     expect(dto).toMatchObject({ summary: null, coverUrl: null, body: null });
   });
 });
+
+describe('PostDto Spanish fields', () => {
+  it.each([
+    ['titleEs', 200],
+    ['summaryEs', 300],
+    ['bodyEs', 100_000],
+  ])(
+    'accepts %s up to %i characters and rejects one more',
+    async (field, max) => {
+      expect(
+        (await errorsFor({ ...draft, [field]: 'a'.repeat(max) })).fields,
+      ).toEqual([]);
+      expect(
+        (await errorsFor({ ...draft, [field]: 'a'.repeat(max + 1) })).fields,
+      ).toEqual([field]);
+    },
+  );
+
+  it.each(['titleEs', 'summaryEs', 'bodyEs', 'slugEs'])(
+    'stores an empty %s as null',
+    async (field) => {
+      const { dto, fields } = await errorsFor({ ...draft, [field]: '' });
+
+      expect(fields).toEqual([]);
+      expect((dto as unknown as Record<string, unknown>)[field]).toBeNull();
+    },
+  );
+
+  it('accepts a Spanish slug without a Spanish title', async () => {
+    expect((await errorsFor({ ...draft, slugEs: 'hola' })).fields).toEqual([]);
+  });
+
+  it.each(['tag', 'page', 'all', 'feed', 'Hola', 'a--b', 'a'.repeat(101)])(
+    'refuses the Spanish slug %j like an English one',
+    async (slugEs) => {
+      expect((await errorsFor({ ...draft, slugEs })).fields).toEqual([
+        'slugEs',
+      ]);
+    },
+  );
+
+  it('accepts an optional Spanish title of up to 200 characters per reference', async () => {
+    const ok = await errorsFor({
+      ...draft,
+      references: [{ ...reference, titleEs: 'a'.repeat(200) }, reference],
+    });
+    const tooLong = await errorsFor({
+      ...draft,
+      references: [{ ...reference, titleEs: 'a'.repeat(201) }],
+    });
+
+    expect(ok.fields).toEqual([]);
+    expect(tooLong.fields).toEqual(['references.0.titleEs']);
+  });
+});

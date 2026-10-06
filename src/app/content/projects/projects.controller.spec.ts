@@ -58,7 +58,10 @@ describe('ProjectsController', () => {
 
     await expect(controller.list({ limit: 4 })).resolves.toEqual([row]);
     await controller.list({});
-    expect(service.listPublished.mock.calls).toEqual([[4], [undefined]]);
+    expect(service.listPublished.mock.calls).toEqual([
+      [4, 'en'],
+      [undefined, 'en'],
+    ]);
   });
 
   it('lists every project for the owner', async () => {
@@ -71,7 +74,18 @@ describe('ProjectsController', () => {
     service.findPublishedBySlug.mockResolvedValue(row);
 
     await expect(controller.findBySlug('portfolio')).resolves.toEqual(row);
-    expect(service.findPublishedBySlug).toHaveBeenCalledWith('portfolio');
+    expect(service.findPublishedBySlug).toHaveBeenCalledWith('portfolio', 'en');
+  });
+
+  it('passes the requested language to the public reads', async () => {
+    await controller.list({ lang: 'es' });
+    await controller.findBySlug('portafolio', { lang: 'es' });
+
+    expect(service.listPublished).toHaveBeenLastCalledWith(undefined, 'es');
+    expect(service.findPublishedBySlug).toHaveBeenLastCalledWith(
+      'portafolio',
+      'es',
+    );
   });
 
   it('creates and updates through the service', async () => {

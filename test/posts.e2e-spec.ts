@@ -249,4 +249,138 @@ describe('/content/posts (e2e)', () => {
 
     expect(response.status).toBe(201);
   });
+
+  describe('Spanish (Spec 004 phase 3)', () => {
+    const spanish = {
+      titleEs: 'Hola',
+      summaryEs: 'Una primera entrada.',
+      bodyEs: `## Introducción\n\n${Array.from({ length: 650 }, () => 'palabra').join(' ')}`,
+      references: [
+        { title: 'Docs', titleEs: 'Documentación', url: 'https://angular.dev' },
+      ],
+    };
+
+    it('serves list, feed and detail in Spanish only for translated posts', async () => {
+      await publishAt(
+        { ...complete, ...spanish, slug: 'one', slugEs: 'uno' },
+        '2026-01-01T00:00:00Z',
+      );
+      await publishAt(
+        { ...complete, slug: 'two', titleEs: 'Solo el título' },
+        '2026-01-02T00:00:00Z',
+      );
+
+      const list = await server().get('/content/posts?lang=es');
+      const feed = await server().get('/content/posts/feed?lang=es');
+      const detail = await server().get('/content/posts/uno?lang=es');
+
+      expect(list.body.items).toMatchObject([
+        { slug: 'two', title: 'Hello', lang: 'en' },
+        {
+          slug: 'one',
+          slugEs: 'uno',
+          title: 'Hola',
+          lang: 'es',
+          readingMinutes: 4,
+        },
+      ]);
+      expect(feed.body).toMatchObject([
+        { slug: 'two', slugEs: null, lang: 'en' },
+        { slug: 'one', slugEs: 'uno', title: 'Hola', lang: 'es' },
+      ]);
+      expect(detail.body).toMatchObject({
+        title: 'Hola',
+        lang: 'es',
+        readingMinutes: 4,
+        toc: [{ id: 'introduccion', text: 'Introducción', level: 2 }],
+        references: [{ title: 'Documentación', url: 'https://angular.dev' }],
+      });
+      expect(detail.body).not.toHaveProperty('bodyEs');
+    });
+
+    it('lists the same posts on Spanish tag pages', async () => {
+      await seed(2, spanish);
+
+      const en = await server().get('/content/posts?tag=web-dev');
+      const es = await server().get('/content/posts?tag=web-dev&lang=es');
+
+      expect(slugsOf(es.body)).toEqual(slugsOf(en.body));
+      expect(es.body.tag).toBe('Web Dev');
+    });
+
+    it('answers 400 for Spanish fields over their limits', async () => {
+      const response = await create({
+        ...complete,
+        summaryEs: 'a'.repeat(301),
+        slugEs: 'tag',
+        references: [{ ...complete.references[0], titleEs: 'a'.repeat(201) }],
+      });
+
+      expect(response.status).toBe(400);
+      expect(Object.keys(response.body.fields).sort()).toEqual([
+        'references.0.titleEs',
+        'slugEs',
+        'summaryEs',
+      ]);
+    });
+
+    it('lists every post for the owner with translated, behind the token', async () => {
+      await create({ ...complete, ...spanish });
+      await create({ ...complete, slug: 'other' });
+
+      expect((await server().get('/content/posts/all')).status).toBe(401);
+      const response = await admin(server().get('/content/posts/all'));
+
+      expect(
+        response.body.map(({ slug, translated }: Record<string, unknown>) => ({
+          slug,
+          translated,
+        })),
+      ).toEqual([
+        { slug: 'other', translated: false },
+        { slug: 'hello', translated: true },
+      ]);
+    });
+
+    it('answers 409 on slugEs when it collides with another post Spanish URL slug', async () => {
+      await create(complete);
+
+      const response = await create({
+        ...complete,
+        slug: 'other',
+        slugEs: 'hello',
+      });
+      const reverse = await create({ ...complete, slug: 'x', slugEs: 'hola' });
+      const englishTaken = await create({ ...complete, slug: 'hola' });
+
+      expect(response.status).toBe(409);
+      expect(response.body.fields).toEqual({
+        slugEs: ['This slug is already in use.'],
+      });
+      expect(reverse.status).toBe(201);
+      expect(englishTaken.status).toBe(409);
+    });
+
+    it('finds a post by Spanish slug, by English slug without one, and by English slug with one', async () => {
+      await publishAt(
+        { ...complete, slug: 'with', slugEs: 'con' },
+        '2026-01-01T00:00:00Z',
+      );
+      await publishAt({ ...complete, slug: 'without' }, '2026-01-02T00:00:00Z');
+
+      const bySpanish = await server().get('/content/posts/con?lang=es');
+      const withoutSpanish = await server().get(
+        '/content/posts/without?lang=es',
+      );
+      const byEnglish = await server().get('/content/posts/with?lang=es');
+
+      expect(bySpanish.body).toMatchObject({ slug: 'with', slugEs: 'con' });
+      expect(withoutSpanish.body).toMatchObject({
+        slug: 'without',
+        slugEs: null,
+      });
+      expect(byEnglish.body).toMatchObject({ slug: 'with', slugEs: 'con' });
+      expect((await server().get('/content/posts/con')).status).toBe(404);
+    });
+  });
 });

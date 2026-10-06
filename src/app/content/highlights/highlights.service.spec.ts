@@ -65,4 +65,63 @@ describe('HighlightsService', () => {
     );
     await expect(service.remove(99)).rejects.toMatchObject({ code: 'P2025' });
   });
+
+  describe('Spanish (Spec 004 phase 3)', () => {
+    const spanish = {
+      titleEs: 'Código limpio',
+      descriptionEs: 'Código legible.',
+    };
+
+    it('stores the Spanish versions and empties them on replace', async () => {
+      const created = await service.create({ ...item, ...spanish });
+      expect(created).toMatchObject(spanish);
+
+      const updated = await service.update(created.id, item);
+      for (const key of ['titleEs', 'descriptionEs']) {
+        expect((updated as Record<string, unknown>)[key]).toBeNull();
+      }
+    });
+
+    it('lists a translated item in Spanish with lang "es"', async () => {
+      await service.create({ ...item, ...spanish });
+
+      const [row] = await service.list('es');
+
+      expect(row).toMatchObject({
+        title: 'Código limpio',
+        description: 'Código legible.',
+        lang: 'es',
+      });
+      for (const key of ['titleEs', 'descriptionEs'])
+        expect(row).not.toHaveProperty(key);
+    });
+
+    it('lists English with lang "en" by default', async () => {
+      await service.create({ ...item, ...spanish });
+
+      expect((await service.list())[0]).toMatchObject({
+        title: 'Clean Code',
+        lang: 'en',
+      });
+    });
+
+    it('lists an item that is not fully translated in English', async () => {
+      await service.create({ ...item, titleEs: 'Código limpio' });
+
+      expect((await service.list('es'))[0]).toMatchObject({
+        title: 'Clean Code',
+        lang: 'en',
+      });
+    });
+
+    it('lists every item for the owner with its Spanish fields and translated flag', async () => {
+      await service.create({ ...item, ...spanish });
+      await service.create(item);
+
+      const rows = await service.listAll();
+
+      expect(rows.map((row) => row.translated)).toEqual([true, false]);
+      expect(rows[0]).toMatchObject(spanish);
+    });
+  });
 });

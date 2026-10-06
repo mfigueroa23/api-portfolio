@@ -1,8 +1,9 @@
 import { PrismaFake } from '../../../test/fakes/prisma.fake.js';
 import { PrismaService } from '../database/prisma.service.js';
-import { RateLimitService } from './rate-limit.service.js';
+import { RateLimitBucket, RateLimitService } from './rate-limit.service.js';
 
 const MINUTE = 60 * 1000;
+const DAY = 24 * 60 * MINUTE;
 
 describe('RateLimitService', () => {
   let prisma: PrismaFake;
@@ -18,11 +19,7 @@ describe('RateLimitService', () => {
     vi.useRealTimers();
   });
 
-  async function hitTimes(
-    times: number,
-    bucket: 'contact' | 'login',
-    ip: string,
-  ) {
+  async function hitTimes(times: number, bucket: RateLimitBucket, ip: string) {
     const results: boolean[] = [];
     for (let i = 0; i < times; i++) results.push(await service.hit(bucket, ip));
     return results;
@@ -72,5 +69,51 @@ describe('RateLimitService', () => {
 
     const restarted = new RateLimitService(prisma as unknown as PrismaService);
     expect(await restarted.hit('login', '1.1.1.1')).toBe(false);
+  });
+
+  describe('testimonial bucket (3 per rolling 24 hours)', () => {
+    it('allows 3 submissions and rejects the 4th without storing it', async () => {
+      expect(await hitTimes(4, 'testimonial', '1.1.1.1')).toEqual([
+        true,
+        true,
+        true,
+        false,
+      ]);
+      expect(
+        await prisma.rateLimitHit.count({ where: { bucket: 'testimonial' } }),
+      ).toBe(3);
+    });
+
+    it('stops counting a hit once it is 24 hours and 1 ms old', async () => {
+      await hitTimes(3, 'testimonial', '1.1.1.1');
+
+      vi.advanceTimersByTime(DAY);
+      expect(await service.hit('testimonial', '1.1.1.1')).toBe(false);
+
+      vi.advanceTimersByTime(1);
+      expect(await service.hit('testimonial', '1.1.1.1')).toBe(true);
+    });
+
+    it('keeps testimonial and contact counts separate', async () => {
+      await hitTimes(3, 'testimonial', '1.1.1.1');
+
+      expect(await hitTimes(5, 'contact', '1.1.1.1')).toEqual([
+        true,
+        true,
+        true,
+        true,
+        true,
+      ]);
+      expect(await service.hit('testimonial', '1.1.1.1')).toBe(false);
+    });
+
+    it('keeps the counts across restarts', async () => {
+      await hitTimes(3, 'testimonial', '1.1.1.1');
+
+      const restarted = new RateLimitService(
+        prisma as unknown as PrismaService,
+      );
+      expect(await restarted.hit('testimonial', '1.1.1.1')).toBe(false);
+    });
   });
 });

@@ -6,19 +6,27 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { Prisma } from '../../../generated/prisma/client.js';
-import { slugConflict } from '../../content/common/slug.js';
+import { slugConflict, slugEsConflict } from '../../content/common/slug.js';
+import { translate } from '../i18n/messages.js';
+import { requestLang } from '../i18n/request-lang.js';
 
 export interface ErrorBody {
   error: string;
   fields?: Record<string, string[]>;
 }
 
+// The public forms answer their messages in the page's language (RF-178).
+const FORM_PATHS = ['/contact', '/testimonials'];
+
 // P2002 names the column in meta.target with the classic engine and only the
 // index (`<table>_<column>_key`) through the pg driver adapter.
-function isSlugConflict(error: Prisma.PrismaClientKnownRequestError): boolean {
-  if (error.code !== 'P2002') return false;
+function uniqueViolation(error: Prisma.PrismaClientKnownRequestError): {
+  fields: unknown[];
+  index: string;
+} | null {
+  if (error.code !== 'P2002') return null;
   const meta = (error.meta ?? {}) as {
     target?: unknown;
     driverAdapterError?: {
@@ -26,11 +34,29 @@ function isSlugConflict(error: Prisma.PrismaClientKnownRequestError): boolean {
     };
   };
   const constraint = meta.driverAdapterError?.cause?.constraint;
-  const fields = [meta.target, constraint?.fields].flat();
+  return {
+    fields: [meta.target, constraint?.fields].flat(),
+    index: typeof constraint?.index === 'string' ? constraint.index : '',
+  };
+}
+
+// The coalesce(slug_es, slug) expression index (Spec 004).
+function isSlugEsConflict(
+  error: Prisma.PrismaClientKnownRequestError,
+): boolean {
+  const violation = uniqueViolation(error);
   return (
-    fields.includes('slug') ||
-    (typeof constraint?.index === 'string' &&
-      constraint.index.endsWith('_slug_key'))
+    !!violation &&
+    (violation.fields.includes('url_slug_es') ||
+      violation.index.endsWith('_url_slug_es_key'))
+  );
+}
+
+function isSlugConflict(error: Prisma.PrismaClientKnownRequestError): boolean {
+  const violation = uniqueViolation(error);
+  return (
+    !!violation &&
+    (violation.fields.includes('slug') || violation.index.endsWith('_slug_key'))
   );
 }
 
@@ -41,9 +67,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<Response>();
+    const http = host.switchToHttp();
+    const response = http.getResponse<Response>();
     const [status, body] = this.toErrorResponse(exception);
-    response.status(status).json(body);
+    response
+      .status(status)
+      .json(this.localize(http.getRequest<Request>(), body));
+  }
+
+  // Errors of the public forms (400, 429 from the middlewares, 500, 502) in
+  // the language of the page they came from.
+  private localize(request: Request, body: ErrorBody): ErrorBody {
+    if (!FORM_PATHS.includes(request.path)) return body;
+    return { ...body, error: translate(body.error, requestLang(request)) };
   }
 
   private toErrorResponse(exception: unknown): [number, ErrorBody] {
@@ -56,6 +92,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
       exception.code === 'P2025'
     ) {
       return [HttpStatus.NOT_FOUND, { error: 'Not found.' }];
+    }
+    // A Spanish URL slug taken between the service's check and the insert.
+    if (
+      exception instanceof Prisma.PrismaClientKnownRequestError &&
+      isSlugEsConflict(exception)
+    ) {
+      const conflict = slugEsConflict();
+      return [conflict.getStatus(), this.fromHttpException(conflict)];
     }
     // A slug taken between the service's check and the insert.
     if (

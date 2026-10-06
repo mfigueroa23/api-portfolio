@@ -17,6 +17,7 @@ import { MarkdownModule } from './markdown/markdown.module.js';
 import { PropertiesModule } from './properties/properties.module.js';
 import { ContactRateLimitMiddleware } from './rate-limit/middlewares/contact-rate-limit.middleware.js';
 import { LoginRateLimitMiddleware } from './rate-limit/middlewares/login-rate-limit.middleware.js';
+import { TestimonialRateLimitMiddleware } from './rate-limit/middlewares/testimonial-rate-limit.middleware.js';
 import { RateLimitModule } from './rate-limit/rate-limit.module.js';
 
 @Module({
@@ -41,6 +42,9 @@ export class AppModule implements NestModule {
     consumer
       .apply(ContactRateLimitMiddleware)
       .forRoutes({ path: 'contact', method: RequestMethod.POST });
+    consumer
+      .apply(TestimonialRateLimitMiddleware)
+      .forRoutes({ path: 'testimonials', method: RequestMethod.POST });
     consumer
       .apply(LoginRateLimitMiddleware)
       .forRoutes({ path: 'auth/google', method: RequestMethod.POST });

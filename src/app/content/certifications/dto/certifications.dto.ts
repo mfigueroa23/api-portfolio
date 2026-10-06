@@ -47,6 +47,12 @@ export class CertificationDto {
   @MaxLength(200)
   name: string;
 
+  @EmptyToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  nameEs?: string | null;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)

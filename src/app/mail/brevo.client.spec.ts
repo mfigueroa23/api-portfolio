@@ -3,6 +3,7 @@ import { BrevoClient, OutgoingEmail } from './brevo.client.js';
 
 const API_KEY = 'xkeysib-secret-test-key';
 const email: OutgoingEmail = {
+  senderName: 'Portfolio Contact',
   replyTo: { name: 'Ada', email: 'ada@example.com' },
   subject: 'New portfolio message from Ada',
   html: '<p>Hi</p>',
@@ -50,6 +51,23 @@ describe('BrevoClient', () => {
       subject: email.subject,
       htmlContent: email.html,
       textContent: email.text,
+    });
+  });
+
+  it('uses the sender name of each email with the same sender address', async () => {
+    fetchMock.mockResolvedValue(new Response('{}', { status: 201 }));
+
+    await client.sendEmail(API_KEY, {
+      ...email,
+      senderName: 'Portfolio Testimonials',
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      sender: {
+        name: 'Portfolio Testimonials',
+        email: 'contact@figueroa-sanchez.com',
+      },
     });
   });
 

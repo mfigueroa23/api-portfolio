@@ -78,3 +78,49 @@ describe('ProjectDto', () => {
     });
   });
 });
+
+describe('ProjectDto Spanish fields', () => {
+  it.each([
+    ['titleEs', 200],
+    ['descriptionEs', 5000],
+    ['bodyEs', 100_000],
+  ])(
+    'accepts %s up to %i characters and rejects one more',
+    async (field, max) => {
+      expect(
+        (await errorsFor({ ...draft, [field]: 'a'.repeat(max) })).fields,
+      ).toEqual([]);
+      expect(
+        (await errorsFor({ ...draft, [field]: 'a'.repeat(max + 1) })).fields,
+      ).toEqual([field]);
+    },
+  );
+
+  it.each(['titleEs', 'descriptionEs', 'bodyEs', 'slugEs'])(
+    'stores an empty %s as null',
+    async (field) => {
+      const { dto, fields } = await errorsFor({ ...draft, [field]: '' });
+
+      expect(fields).toEqual([]);
+      expect((dto as unknown as Record<string, unknown>)[field]).toBeNull();
+    },
+  );
+
+  it('accepts a Spanish slug without a Spanish title, or equal to its own slug', async () => {
+    expect(
+      (await errorsFor({ ...draft, slugEs: 'portafolio' })).fields,
+    ).toEqual([]);
+    expect((await errorsFor({ ...draft, slugEs: 'portfolio' })).fields).toEqual(
+      [],
+    );
+  });
+
+  it.each(['a'.repeat(101), '-a', 'a--b', 'Upper', 'a b', 'all'])(
+    'refuses the Spanish slug %j like an English one',
+    async (slugEs) => {
+      expect((await errorsFor({ ...draft, slugEs })).fields).toEqual([
+        'slugEs',
+      ]);
+    },
+  );
+});

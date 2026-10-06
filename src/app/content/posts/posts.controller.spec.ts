@@ -65,8 +65,8 @@ describe('PostsController', () => {
     await controller.list({ page: 2, tag: 'web-dev' });
 
     expect(service.listPublished.mock.calls).toEqual([
-      [{ page: 1, tag: undefined }],
-      [{ page: 2, tag: 'web-dev' }],
+      [{ page: 1, tag: undefined, lang: 'en' }],
+      [{ page: 2, tag: 'web-dev', lang: 'en' }],
     ]);
   });
 
@@ -78,7 +78,23 @@ describe('PostsController', () => {
     await expect(controller.feed()).resolves.toEqual([row]);
     await expect(controller.listAll()).resolves.toEqual([row]);
     await expect(controller.findBySlug('hello')).resolves.toEqual(row);
-    expect(service.findPublishedBySlug).toHaveBeenCalledWith('hello');
+    expect(service.findPublishedBySlug).toHaveBeenCalledWith('hello', 'en');
+  });
+
+  it('passes the requested language to every public read', async () => {
+    service.listPublished.mockResolvedValue({ items: [] });
+
+    await controller.list({ page: 1, lang: 'es' });
+    await controller.feed({ lang: 'es' });
+    await controller.findBySlug('hola', { lang: 'es' });
+
+    expect(service.listPublished).toHaveBeenCalledWith({
+      page: 1,
+      tag: undefined,
+      lang: 'es',
+    });
+    expect(service.feed).toHaveBeenCalledWith('es');
+    expect(service.findPublishedBySlug).toHaveBeenCalledWith('hola', 'es');
   });
 
   it('delegates the writes', async () => {

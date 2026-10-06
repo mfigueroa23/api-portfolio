@@ -1,22 +1,22 @@
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 
 const BREVO_URL = 'https://api.brevo.com/v3/smtp/email';
-const SENDER = {
-  name: 'Portfolio Contact',
-  email: 'contact@figueroa-sanchez.com',
-};
+// One sender address for every email; the display name tells the owner which
+// form the email comes from ("Portfolio Contact", "Portfolio Testimonials").
+const SENDER_EMAIL = 'contact@figueroa-sanchez.com';
 const OWNER = { name: 'Marco Figueroa', email: 'marco@figueroa-sanchez.com' };
 const TIMEOUT_MS = 10_000;
 const FAILURE_MESSAGE = 'Failed to send the message. Please try again later.';
 
 export interface OutgoingEmail {
+  senderName: string;
   replyTo: { name: string; email: string };
   subject: string;
   html: string;
   text: string;
 }
 
-// Sends from a fixed sender to the owner, with the visitor as reply-to so the
+// Sends from a fixed sender address to the owner, with the visitor as reply-to so the
 // owner can answer straight from the mail client.
 @Injectable()
 export class BrevoClient {
@@ -33,7 +33,7 @@ export class BrevoClient {
           accept: 'application/json',
         },
         body: JSON.stringify({
-          sender: SENDER,
+          sender: { name: email.senderName, email: SENDER_EMAIL },
           to: [OWNER],
           replyTo: email.replyTo,
           subject: email.subject,

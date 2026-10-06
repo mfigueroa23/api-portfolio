@@ -256,4 +256,147 @@ describe('ProjectsService', () => {
       }
     });
   });
+
+  describe('Spanish (Spec 004 phase 3)', () => {
+    const spanish = {
+      titleEs: 'Portafolio',
+      descriptionEs: 'Sitio personal.',
+      bodyEs: '## Arquitectura\n\nDetalles.',
+    };
+
+    async function publishedWith(dto: ProjectDto) {
+      const created = await service.create(dto);
+      return service.publish(created.id);
+    }
+
+    it('stores the Spanish fields and slug', async () => {
+      const created = await service.create({
+        ...item,
+        ...spanish,
+        slugEs: 'portafolio',
+      });
+
+      expect(created).toMatchObject({ ...spanish, slugEs: 'portafolio' });
+    });
+
+    it('lists translated projects in Spanish with slug and slugEs', async () => {
+      await publishedWith({ ...item, ...spanish, slugEs: 'portafolio' });
+
+      const [row] = await service.listPublished(undefined, 'es');
+
+      expect(row).toMatchObject({
+        title: 'Portafolio',
+        description: 'Sitio personal.',
+        slug: 'portfolio',
+        slugEs: 'portafolio',
+        lang: 'es',
+      });
+      expect(row).not.toHaveProperty('body');
+      expect(row).not.toHaveProperty('bodyEs');
+      expect(row).not.toHaveProperty('titleEs');
+    });
+
+    it('lists a project without Spanish body in English, also on the list', async () => {
+      await publishedWith({ ...item, ...spanish, bodyEs: null });
+
+      expect((await service.listPublished(undefined, 'es'))[0]).toMatchObject({
+        title: 'Portfolio',
+        lang: 'en',
+      });
+    });
+
+    it('renders the body of the language it shows', async () => {
+      await publishedWith({ ...item, ...spanish });
+
+      const detail = await service.findPublishedBySlug('portfolio', 'es');
+
+      expect(detail).toMatchObject({ title: 'Portafolio', lang: 'es' });
+      expect(detail.bodyHtml).toContain('Arquitectura');
+      expect(
+        (await service.findPublishedBySlug('portfolio')).bodyHtml,
+      ).toContain('Architecture');
+    });
+
+    it('marks every project of the owner list as translated or not', async () => {
+      await service.create({ ...item, ...spanish });
+      await service.create({ ...item, slug: 'other' });
+
+      expect(
+        (await service.listAll()).map(({ slug, translated }) => ({
+          slug,
+          translated,
+        })),
+      ).toEqual([
+        { slug: 'other', translated: false },
+        { slug: 'portfolio', translated: true },
+      ]);
+    });
+
+    describe('Spanish URL slug', () => {
+      it('answers 409 on slugEs when it equals another project slug', async () => {
+        await service.create(item);
+
+        const error = await service
+          .create({ ...item, slug: 'other', slugEs: 'portfolio' })
+          .catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(ConflictException);
+        expect((error as ConflictException).getResponse()).toEqual({
+          error: 'This slug is already in use.',
+          fields: { slugEs: ['This slug is already in use.'] },
+        });
+      });
+
+      it('answers 409 when the slug equals another project Spanish slug', async () => {
+        await service.create({ ...item, slugEs: 'proyecto' });
+
+        await expect(
+          service.create({ ...item, slug: 'proyecto' }),
+        ).rejects.toBeInstanceOf(ConflictException);
+      });
+
+      it('allows the Spanish slug to equal its own slug, also on update', async () => {
+        const created = await service.create({ ...item, slugEs: 'portfolio' });
+
+        await expect(
+          service.update(created.id, { ...item, slugEs: 'portfolio' }),
+        ).resolves.toMatchObject({ slugEs: 'portfolio' });
+      });
+
+      it('finds a project by its Spanish slug', async () => {
+        await publishedWith({ ...item, ...spanish, slugEs: 'portafolio' });
+
+        await expect(
+          service.findPublishedBySlug('portafolio', 'es'),
+        ).resolves.toMatchObject({ slug: 'portfolio', slugEs: 'portafolio' });
+        await expect(
+          service.findPublishedBySlug('portafolio'),
+        ).rejects.toBeInstanceOf(NotFoundException);
+      });
+
+      it('finds a project without Spanish slug by its English slug', async () => {
+        await publishedWith(item);
+
+        await expect(
+          service.findPublishedBySlug('portfolio', 'es'),
+        ).resolves.toMatchObject({ slug: 'portfolio', slugEs: null });
+      });
+
+      it('finds a project by its English slug when it has a Spanish one (for the redirect)', async () => {
+        await publishedWith({ ...item, slugEs: 'portafolio' });
+
+        await expect(
+          service.findPublishedBySlug('portfolio', 'es'),
+        ).resolves.toMatchObject({ slug: 'portfolio', slugEs: 'portafolio' });
+      });
+
+      it('never finds a draft by its Spanish slug', async () => {
+        await service.create({ ...item, slugEs: 'portafolio' });
+
+        await expect(
+          service.findPublishedBySlug('portafolio', 'es'),
+        ).rejects.toBeInstanceOf(NotFoundException);
+      });
+    });
+  });
 });
