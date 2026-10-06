@@ -130,10 +130,12 @@ const collections: Collection[] = [
       quote: 'Great work.',
       author: 'Grace Hopper',
       role: 'Admiral',
-      avatar: '/avatars/grace.png',
+      avatar: 'https://api.figueroa-sanchez.com/files/grace',
     },
     textField: 'quote',
-    requiredFields: ['position', 'quote', 'author', 'role', 'avatar'],
+    // Spec 004: the photo is optional and creation takes no position (the
+    // item is placed first); edits keep `position`.
+    requiredFields: ['quote', 'author', 'role'],
     tooLong: { field: 'author', max: 200 },
   },
   {

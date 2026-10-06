@@ -139,17 +139,39 @@ model File {
   @@map("file")
 }
 
-model Testimonial {
-  id        Int      @id @default(autoincrement())
-  position  Int
-  quote     String
-  author    String   @db.VarChar(200)
-  role      String   @db.VarChar(200)
-  avatar    String   @db.VarChar(500)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+// Review state of a testimonial (Spec 004): visitor submissions stay pending
+// until the owner approves them; rejecting deletes the row.
+enum TestimonialStatus {
+  pending
+  approved
 
-  @@index([position])
+  @@map("testimonial_status")
+}
+
+// `language IN ('en','es')` is enforced by a CHECK constraint added by hand in
+// the testimonial_review migration (Prisma cannot declare it). The 500
+// character quote limit lives in the DTOs so older, longer quotes are kept.
+model Testimonial {
+  id          Int               @id @default(autoincrement())
+  // Null only while pending; approving or creating places the item at 0.
+  position    Int?
+  quote       String
+  author      String            @db.VarChar(200)
+  role        String            @db.VarChar(200)
+  avatar      String?           @db.VarChar(500)
+  status      TestimonialStatus @default(approved)
+  // Visitor's email, only while pending: approval clears it.
+  email       String?           @db.VarChar(200)
+  // Language of the page the visitor submitted from ('en' or 'es').
+  language    String?           @db.VarChar(2)
+  // False when the owner's notification email could not be sent.
+  notified    Boolean           @default(true)
+  submittedAt DateTime?         @map("submitted_at") @db.Timestamptz
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([status, position])
+  @@index([status, submittedAt(sort: Desc)])
   @@map("testimonial")
 }
 

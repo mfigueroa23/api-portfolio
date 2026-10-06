@@ -12,6 +12,7 @@ type OrderBy = Record<
   SortOrder | { sort: SortOrder; nulls?: 'first' | 'last' }
 >;
 type Omit = Record<string, boolean>;
+type Select = Record<string, boolean>;
 
 function isOperator(condition: unknown): condition is Record<string, unknown> {
   return (
@@ -89,6 +90,29 @@ function project(row: Row, omit: Omit = {}): Row {
   return copy;
 }
 
+// `select` keeps only the fields set to true, like Prisma.
+function pick(row: Row, select?: Select): Row {
+  if (!select) return row;
+  return Object.fromEntries(
+    Object.entries(row).filter(([field]) => select[field] === true),
+  );
+}
+
+// Applies Prisma's atomic number operations (`{ increment }`); NULL stays NULL
+// like in SQL. `undefined` leaves the field unchanged, like Prisma.
+function applyData(row: Row, data: Row): void {
+  for (const [field, value] of Object.entries(data)) {
+    if (value === undefined) continue;
+    if (value instanceof Object && 'increment' in value) {
+      const current = row[field] as number | null | undefined;
+      row[field] =
+        current == null ? null : current + (value.increment as number);
+    } else {
+      row[field] = value;
+    }
+  }
+}
+
 interface FakeModelOptions {
   // Columns with a unique index besides the id.
   unique?: string[];
@@ -119,6 +143,7 @@ export class FakeModel<T extends Row = Row> {
       skip?: number;
       take?: number;
       omit?: Omit;
+      select?: Select;
     } = {},
   ) {
     const orderBy = [args.orderBy ?? []].flat();
@@ -127,7 +152,9 @@ export class FakeModel<T extends Row = Row> {
       .filter((row) => matches(row, args.where))
       .sort((a, b) => compare(a, b, orderBy))
       .slice(skip, args.take === undefined ? undefined : skip + args.take);
-    return Promise.resolve(rows.map((row) => project(row, args.omit)));
+    return Promise.resolve(
+      rows.map((row) => pick(project(row, args.omit), args.select)),
+    );
   }
 
   findUnique(args: { where: Where; omit?: Omit }) {
@@ -159,11 +186,21 @@ export class FakeModel<T extends Row = Row> {
     } catch (error) {
       return Promise.reject(error as Error);
     }
-    Object.assign(row, args.data);
+    applyData(row, args.data);
     if (this.timestamps.includes('updatedAt')) {
       (row as Row).updatedAt = new Date();
     }
     return Promise.resolve(project(row, args.omit));
+  }
+
+  updateMany(args: { where?: Where; data: Row }) {
+    const rows = this.rows.filter((row) => matches(row, args.where));
+    const now = new Date();
+    for (const row of rows) {
+      applyData(row, args.data);
+      if (this.timestamps.includes('updatedAt')) (row as Row).updatedAt = now;
+    }
+    return Promise.resolve({ count: rows.length });
   }
 
   delete(args: { where: Where }) {
@@ -204,7 +241,17 @@ export class PrismaFake {
     unique: ['slug'],
     defaults: () => ({ status: 'draft', publishedAt: null }),
   });
-  testimonial = new FakeModel();
+  testimonial = new FakeModel('id', ['createdAt', 'updatedAt'], {
+    defaults: () => ({
+      position: null,
+      avatar: null,
+      status: 'approved',
+      email: null,
+      language: null,
+      notified: true,
+      submittedAt: null,
+    }),
+  });
   highlight = new FakeModel();
   socialLink = new FakeModel();
   technology = new FakeModel();

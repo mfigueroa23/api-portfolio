@@ -289,4 +289,97 @@ describe('PrismaFake', () => {
       2, 4, 1, 3,
     ]);
   });
+
+  describe('testimonials (Spec 004)', () => {
+    it('applies the schema defaults: approved, notified, nullable columns', async () => {
+      const row = await prisma.testimonial.create({
+        data: { quote: 'q', author: 'a', role: 'r' },
+      });
+
+      expect(row).toMatchObject({
+        status: 'approved',
+        notified: true,
+        position: null,
+        avatar: null,
+        email: null,
+        language: null,
+        submittedAt: null,
+      });
+    });
+
+    it('keeps an explicit pending status and null position', async () => {
+      const row = await prisma.testimonial.create({
+        data: { quote: 'q', author: 'a', role: 'r', status: 'pending' },
+      });
+
+      expect(row).toMatchObject({ status: 'pending', position: null });
+      expect(
+        await prisma.testimonial.count({ where: { status: 'pending' } }),
+      ).toBe(1);
+    });
+
+    it('increments a column with updateMany only on matching rows', async () => {
+      for (const [position, status] of [
+        [0, 'approved'],
+        [1, 'approved'],
+        [null, 'pending'],
+      ] as const) {
+        await prisma.testimonial.create({
+          data: { quote: 'q', author: 'a', role: 'r', position, status },
+        });
+      }
+
+      const result = await prisma.testimonial.updateMany({
+        where: { status: 'approved' },
+        data: { position: { increment: 1 } },
+      });
+
+      expect(result).toEqual({ count: 2 });
+      expect(prisma.testimonial.rows.map((row) => row.position)).toEqual([
+        1,
+        2,
+        null,
+      ]);
+    });
+
+    it('leaves null values null when incrementing, like SQL', async () => {
+      await prisma.testimonial.create({
+        data: { quote: 'q', author: 'a', role: 'r', position: null },
+      });
+
+      await prisma.testimonial.updateMany({
+        data: { position: { increment: 1 } },
+      });
+
+      expect(prisma.testimonial.rows[0].position).toBeNull();
+    });
+
+    it('leaves fields set to undefined unchanged on update, like Prisma', async () => {
+      const row = await prisma.testimonial.create({
+        data: { quote: 'q', author: 'a', role: 'r', position: 3 },
+      });
+
+      await prisma.testimonial.update({
+        where: { id: row.id },
+        data: { quote: 'new', position: undefined },
+      });
+
+      expect(prisma.testimonial.rows[0]).toMatchObject({
+        quote: 'new',
+        position: 3,
+      });
+    });
+
+    it('returns only the selected fields with findMany select', async () => {
+      await prisma.testimonial.create({
+        data: { quote: 'q', author: 'a', role: 'r', email: 'a@b.co' },
+      });
+
+      expect(
+        await prisma.testimonial.findMany({
+          select: { id: true, author: true, email: false },
+        }),
+      ).toEqual([{ id: 1, author: 'a' }]);
+    });
+  });
 });

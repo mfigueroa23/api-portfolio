@@ -1,15 +1,21 @@
-import { IsInt, IsNotEmpty, IsString, MaxLength, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+  Min,
+} from 'class-validator';
+import { EmptyToNull, HTTP_URL_OPTIONS } from '../../common/dto-transforms.js';
 
-// Used for create and for update (PUT replaces the whole item). Limits match
-// the column sizes; unknown fields are stripped by the global ValidationPipe.
-export class TestimonialDto {
-  @IsInt()
-  @Min(0)
-  position: number;
-
+// Owner create (POST /content/testimonials). No position: a created item is
+// always placed first (Spec 004 RF-82, RF-85). Validation runs on writes only,
+// so quotes over 500 characters saved before Spec 004 stay until edited.
+export class CreateTestimonialDto {
   @IsString()
   @IsNotEmpty()
-  @MaxLength(5000)
+  @MaxLength(500)
   quote: string;
 
   @IsString()
@@ -22,8 +28,19 @@ export class TestimonialDto {
   @MaxLength(200)
   role: string;
 
-  @IsString()
-  @IsNotEmpty()
+  // Optional photo; the web shows the author's initials without one.
+  @EmptyToNull()
+  @IsOptional()
+  @IsUrl(HTTP_URL_OPTIONS)
   @MaxLength(500)
-  avatar: string;
+  avatar?: string | null;
+}
+
+// Owner edit (PUT …/:id) and approval (POST …/:id/approve): the form values,
+// plus the display position of an approved item.
+export class UpdateTestimonialDto extends CreateTestimonialDto {
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  position?: number;
 }

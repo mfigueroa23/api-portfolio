@@ -9,12 +9,15 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import {
+  HoneypotInterceptor,
+  HoneypotReply,
+} from '../common/interceptors/honeypot.interceptor.js';
+import {
   CONTACT_INVALID_MESSAGE,
   CONTACT_SUCCESS_MESSAGE,
 } from './contact.constants.js';
 import { ContactService } from './contact.service.js';
 import { SendContactDto } from './dto/send-contact.dto.js';
-import { HoneypotInterceptor } from './interceptors/honeypot.interceptor.js';
 import type { ContactMessage } from './interfaces/contact-message.interface.js';
 
 // The contact form answers every validation failure with one generic message
@@ -35,6 +38,7 @@ export class ContactController {
   @Post()
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(HoneypotInterceptor)
+  @HoneypotReply(CONTACT_SUCCESS_MESSAGE)
   async send(
     @Body(contactValidationPipe) message: ContactMessage,
   ): Promise<{ message: string }> {
