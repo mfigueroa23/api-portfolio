@@ -80,7 +80,9 @@ describe('testimonial email template', () => {
       language: 'en',
     });
 
-    expect(html).not.toMatch(/<b>Ada|<i>role|<script>/);
+    expect(html).not.toContain('<b>Ada');
+    expect(html).not.toContain('<i>role');
+    expect(html.toLowerCase()).not.toContain('<script');
     expect(html).toContain('&lt;b&gt;Ada&lt;/b&gt;');
     expect(html).toContain('&lt;i&gt;role&lt;/i&gt;');
     expect(html).toContain('a&amp;o&#39;n@example.com');

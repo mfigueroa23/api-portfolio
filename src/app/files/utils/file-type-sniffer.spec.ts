@@ -28,6 +28,35 @@ describe('sniff', () => {
     },
   );
 
+  it('skips a lowercase doctype with an internal subset', () => {
+    const svg = Buffer.from(
+      '<!doctype svg [ <!ENTITY a "b"> ]>\n<svg xmlns="http://www.w3.org/2000/svg"/>',
+    );
+    expect(sniff(svg)).toBe('image/svg+xml');
+  });
+
+  it.each([
+    ['declaration', '<?xml version="1.0"'],
+    ['comment', '<!-- note'],
+    ['doctype', '<!DOCTYPE svg'],
+    ['internal subset', '<!DOCTYPE svg [ <!ENTITY a "b">'],
+  ])('refuses a %s left open before the root', (_, prolog) => {
+    expect(sniff(Buffer.from(`${prolog}<svg></svg>`))).toBeNull();
+  });
+
+  it.each([
+    ['<!doctype[', '[]'],
+    ['<!doctype', ']'],
+    ['<?', ']><?'],
+    ['<!--', '?><!--'],
+    ['', '<?a?><!--b-->'],
+  ])('scans %s followed by many %s in linear time', (start, repeated) => {
+    const hostile = Buffer.from(start + repeated.repeat(100_000));
+    const began = performance.now();
+    expect(sniff(hostile)).toBeNull();
+    expect(performance.now() - began).toBeLessThan(500);
+  });
+
   it('refuses an empty body and truncated signatures', () => {
     expect(sniff(Buffer.alloc(0))).toBeNull();
     expect(sniff(samples.png.subarray(0, 4))).toBeNull();

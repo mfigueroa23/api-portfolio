@@ -56,11 +56,13 @@ export function apiPublicUrl(): string {
 export class FilesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async store(
-    name: string,
-    body: Buffer | typeof TOO_LARGE,
-  ): Promise<FileMeta> {
+  async store(name: string, body: unknown): Promise<FileMeta> {
     if (body === TOO_LARGE) throw new BadRequestException('File too large.');
+    // RawBodyMiddleware leaves a Buffer; anything else (a string or an array
+    // from a parser) is refused before its length is trusted.
+    if (typeof body !== 'object' || !Buffer.isBuffer(body)) {
+      throw new BadRequestException('Unsupported file type.');
+    }
     const mime = sniff(body);
     if (!mime) throw new BadRequestException('Unsupported file type.');
     const limit =
