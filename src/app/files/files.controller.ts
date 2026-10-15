@@ -13,7 +13,6 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
-import { TOO_LARGE } from '../common/middlewares/raw-body.middleware.js';
 import {
   ListFilesQueryDto,
   UploadFileQueryDto,
@@ -39,7 +38,7 @@ export class FilesController {
     @Query() query: UploadFileQueryDto,
     @Req() req: Request,
   ): Promise<FileMeta> {
-    return this.files.store(query.name, req.body as Buffer | typeof TOO_LARGE);
+    return this.files.store(query.name, req.body as unknown);
   }
 
   @Get()

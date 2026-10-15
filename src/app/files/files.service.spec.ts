@@ -91,6 +91,17 @@ describe('FilesService', () => {
       expect(prisma.file.rows).toEqual([]);
     });
 
+    it.each([
+      ['a string', '%PDF-1.7'],
+      ['an array', ['%PDF-1.7']],
+      ['no body', undefined],
+    ])('refuses %s instead of a Buffer', async (_, body) => {
+      await expect(service.store('a.pdf', body)).rejects.toEqual(
+        new BadRequestException('Unsupported file type.'),
+      );
+      expect(prisma.file.rows).toEqual([]);
+    });
+
     it('keeps the first 200 characters of the name', async () => {
       const name = `${'é'.repeat(199)}🚀🚀.png`;
 
