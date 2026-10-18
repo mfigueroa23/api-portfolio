@@ -151,9 +151,23 @@ model File {
   size      Int
   data      Bytes
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  resumes   Resume[]
 
   @@index([createdAt(sort: Desc)])
   @@map("file")
+}
+
+// Current resume per language (Spec 005). `lang IN ('en','es')` is a CHECK
+// constraint added by hand in the resume migration (Prisma cannot declare it).
+// A file cannot be deleted while a resume points at it (Restrict).
+model Resume {
+  lang       String   @id @db.VarChar(2)
+  fileId     String   @map("file_id") @db.Uuid
+  file       File     @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz
+
+  @@index([fileId])
+  @@map("resume")
 }
 
 // Review state of a testimonial (Spec 004): visitor submissions stay pending

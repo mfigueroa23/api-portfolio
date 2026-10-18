@@ -1,4 +1,4 @@
-import { fileHeaders } from './files-response.js';
+import { fileHeaders, resumeHeaders } from './files-response.js';
 
 describe('fileHeaders', () => {
   it('serves the exact type with headers that keep scripts from running', () => {
@@ -22,5 +22,19 @@ describe('fileHeaders', () => {
     expect(headers['Content-Disposition']).toBe(
       "inline; filename*=UTF-8''A%C3%B1o%20%22final%22%20%28v2%29%27s.pdf%0D%0AX%3A%20y",
     );
+  });
+});
+
+describe('resumeHeaders', () => {
+  it('keeps the file headers but makes caches revalidate instead of immutable', () => {
+    const file = { mime: 'application/pdf', name: 'Marco CV.pdf' };
+
+    const headers = resumeHeaders(file);
+
+    expect(headers).toEqual({
+      ...fileHeaders(file),
+      'Cache-Control': 'no-cache',
+    });
+    expect(Object.values(headers).join(' ')).not.toContain('immutable');
   });
 });

@@ -15,25 +15,25 @@
 
 ## Phase 1 — Foundations
 
-- [ ] **T02 — `resume` model and migration**
+- [x] **T02 — `resume` model and migration**
   - **RF:** RF-01, RF-03, RF-10, RF-20
   - **Depends on:** T01
   - **Scope:** `Resume` model + `File.resumes` back-relation (plan, Data model, D1–D3). Migration `resume` with the hand-added `CHECK (lang IN ('en','es'))`.
   - **Done when:** `pnpm prisma migrate status` reports the database is up to date, `psql -c '\d resume'` shows PK `lang`, the CHECK and an FK to `file(id)` with `ON DELETE RESTRICT`, and `pnpm build` passes.
 
-- [ ] **T03 — Fake: `resume` model and `upsert`**
+- [x] **T03 — Fake: `resume` model and `upsert`**
   - **RF:** — (test infrastructure for RF-01 – RF-21)
   - **Depends on:** T02
   - **Scope:** `PrismaFake.resume` keyed by `lang` with an `assignedAt` default, and a generic `FakeModel.upsert`.
   - **Done when:** `pnpm test:e2e test/fakes/prisma.fake.e2e-spec.ts` passes with new `upsert` cases: it creates when the row is missing and updates when it exists.
 
-- [ ] **T04 — `FilesService.meta` and `FilesModule` export**
+- [x] **T04 — `FilesService.meta` and `FilesModule` export**
   - **RF:** RF-05, RF-06
   - **Depends on:** T02
   - **Scope:** `meta(id)` returns `FileMeta` without loading the bytes and throws 404 for a missing or malformed id. `urlOf` builds on it, and `FilesModule` exports `FilesService`.
   - **Done when:** `files.service.spec.ts` has passing cases for `meta` (existing file, unknown UUID, non-UUID), and the existing `files` unit and e2e suites pass unchanged.
 
-- [ ] **T05 — `resumeHeaders`**
+- [x] **T05 — `resumeHeaders`**
   - **RF:** RF-13, RF-18
   - **Depends on:** — (can run in parallel with T02–T04)
   - **Scope:** `files-response.ts` gains `resumeHeaders(file)`: `fileHeaders` with `Cache-Control: no-cache` (D7).

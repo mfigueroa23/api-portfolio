@@ -175,6 +175,32 @@ describe('FilesService', () => {
     });
   });
 
+  describe('meta', () => {
+    it('returns the metadata and public URL without the bytes', async () => {
+      const stored = await service.store('cv.pdf', samples.pdf);
+
+      const meta = await service.meta(stored.id);
+
+      expect(meta).toEqual(stored);
+      expect(meta).not.toHaveProperty('data');
+      await expect(service.urlOf(stored.id)).resolves.toBe(
+        `http://localhost:3000/files/${stored.id}`,
+      );
+    });
+
+    it.each(['2b1e0a4c-5d3f-4e2a-9b8c-7d6e5f4a3b2c', 'not-a-uuid'])(
+      'answers 404 for an unknown id (%s)',
+      async (id) => {
+        await expect(service.meta(id)).rejects.toEqual(
+          new NotFoundException('Not found.'),
+        );
+        await expect(service.urlOf(id)).rejects.toEqual(
+          new NotFoundException('Not found.'),
+        );
+      },
+    );
+  });
+
   describe('read and remove', () => {
     it('reads the bytes, type and name of a file', async () => {
       const stored = await service.store('a.svg', samples.svg);

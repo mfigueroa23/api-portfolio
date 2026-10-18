@@ -113,7 +113,8 @@ export class FilesService {
     return { data: Buffer.from(file.data), mime: file.mime, name: file.name };
   }
 
-  async urlOf(id: string): Promise<string> {
+  // Metadata of one file, without loading its bytes.
+  async meta(id: string): Promise<FileMeta> {
     const file = UUID_PATTERN.test(id)
       ? await this.prisma.file.findUnique({
           where: { id },
@@ -121,7 +122,11 @@ export class FilesService {
         })
       : null;
     if (!file) throw new NotFoundException('Not found.');
-    return this.urlFor(file.id);
+    return this.toMeta(file);
+  }
+
+  async urlOf(id: string): Promise<string> {
+    return (await this.meta(id)).url;
   }
 
   async remove(id: string): Promise<void> {
