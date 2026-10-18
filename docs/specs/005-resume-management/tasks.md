@@ -41,25 +41,25 @@
 
 ## Phase 2 — Resume module
 
-- [ ] **T06 — Resume DTOs**
+- [x] **T06 — Resume DTOs**
   - **RF:** RF-05, RF-06, RF-07, RF-17
   - **Depends on:** T01
   - **Scope:** `ResumeLangParamDto`, `ResumeQueryDto` (D8) and `AssignResumeDto` (`@IsUUID()` `fileId`) in `src/app/resume/dto/`.
   - **Done when:** `dto/*.spec.ts` passes. `validate()` accepts `en`/`es`, rejects `fr`, `""` and a repeated `lang` with a `lang` error, allows `lang` to be missing only in `ResumeQueryDto`, and rejects a missing or non-UUID `fileId`.
 
-- [ ] **T07 — `ResumeService`: read, assign, clear**
+- [x] **T07 — `ResumeService`: read, assign, clear**
   - **RF:** RF-01, RF-03, RF-04, RF-05, RF-06, RF-08, RF-09, RF-10, RF-11, RF-12
   - **Depends on:** T03, T04
   - **Scope:** `assignments()`, `assign(lang, fileId)` (in a transaction, D4, D6, D11) and `clear(lang)`.
   - **Done when:** U-S1 to U-S5 pass in `resume.service.spec.ts`.
 
-- [ ] **T08 — `ResumeService.publicFile`**
+- [x] **T08 — `ResumeService.publicFile`**
   - **RF:** RF-14, RF-15, RF-16
   - **Depends on:** T07
   - **Scope:** resolves the requested language with the Spanish → English fallback and returns the bytes, `mime` and name.
   - **Done when:** U-S6 passes. It covers `en`, `es`, `es` falling back to `en`, `lang` missing, nothing assigned (404), and Spanish assigned without English.
 
-- [ ] **T09 — `ResumeController` and `ResumeModule` wiring**
+- [x] **T09 — `ResumeController` and `ResumeModule` wiring**
   - **RF:** RF-01 – RF-19
   - **Depends on:** T05, T06, T08
   - **Scope:** the four routes from the plan (D9), `JwtAuthGuard` on the three owner routes, `ResumeModule` imports `AuthModule` and `FilesModule`, registered in `app.module.ts`.

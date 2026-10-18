@@ -19,6 +19,7 @@ import { ContactRateLimitMiddleware } from './rate-limit/middlewares/contact-rat
 import { LoginRateLimitMiddleware } from './rate-limit/middlewares/login-rate-limit.middleware.js';
 import { TestimonialRateLimitMiddleware } from './rate-limit/middlewares/testimonial-rate-limit.middleware.js';
 import { RateLimitModule } from './rate-limit/rate-limit.module.js';
+import { ResumeModule } from './resume/resume.module.js';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { RateLimitModule } from './rate-limit/rate-limit.module.js';
     ContentModule,
     MarkdownModule,
     FilesModule,
+    ResumeModule,
   ],
   controllers: [HealthController],
 })
