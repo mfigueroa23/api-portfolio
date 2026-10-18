@@ -81,13 +81,13 @@
 
 ## Phase 4 — End to end
 
-- [ ] **T12 — `test/resume.e2e-spec.ts`**
+- [x] **T12 — `test/resume.e2e-spec.ts`**
   - **RF:** RF-01 – RF-19
   - **Depends on:** T09
   - **Scope:** E1 to E9 from the plan, with the sample PDF and PNG from `test/fixtures/file-samples.ts` uploaded through `POST /files`.
   - **Done when:** `pnpm test:e2e test/resume.e2e-spec.ts` passes with E1–E9, including the 304 on `If-None-Match` and the new bytes and `ETag` at the same URL after a replacement.
 
-- [ ] **T13 — File library e2e cases**
+- [x] **T13 — File library e2e cases**
   - **RF:** RF-20, RF-21, RF-22
   - **Depends on:** T09, T10, T11
   - **Scope:** E10 in `test/files.e2e-spec.ts`.
