@@ -95,19 +95,19 @@
 
 ## Phase 5 — Docs, verification and release
 
-- [ ] **T14 — README**
+- [x] **T14 — README**
   - **RF:** RF-13 – RF-21 (documentation)
   - **Depends on:** T12, T13
   - **Scope:** the endpoints table (4 new routes and the 409 on `DELETE /files/:id`), the fallback and caching rules, and a "Release order for resume management (version 6.1.0)" section (plan, Release).
   - **Done when:** `README.md` lists every route in the plan's endpoints table with its auth and answer, and the release-order section says to run `pnpm prisma migrate deploy` before merging.
 
-- [ ] **T15 — Quality gate**
+- [x] **T15 — Quality gate**
   - **RF:** all
   - **Depends on:** T12, T13, T14
   - **Scope:** `pnpm format` on touched files, then the full checks from AGENTS.md and the constitution (§3, §4).
   - **Done when:** `pnpm lint`, `pnpm test`, `pnpm test:e2e` and `pnpm build` exit 0, and `pnpm exec prettier --check "src/**/*.ts" "test/**/*.ts"` is clean.
 
-- [ ] **T16 — Manual check against a local database**
+- [x] **T16 — Manual check against a local database**
   - **RF:** RF-13, RF-15, RF-18, RF-19, RF-20
   - **Depends on:** T15
   - **Scope:** the spec's manual done criterion, plus the database-level `Restrict` that the fake cannot check (D3).
@@ -118,7 +118,7 @@
     - `DELETE /files/:id` of the assigned PDF answers 409;
     - `DELETE FROM file WHERE id = '<assigned id>'` in `psql` fails with a foreign key violation.
 
-- [ ] **T17 — Version bump**
+- [x] **T17 — Version bump**
   - **RF:** —
   - **Depends on:** T16
   - **Scope:** `package.json` → `6.1.0`.

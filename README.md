@@ -35,8 +35,12 @@ pnpm start:dev        # http://localhost:3000 (override with PORT)
 | `POST /files?name=<name>` | Bearer | Uploads the raw request body (PNG, JPEG, GIF, WebP, SVG up to 5 MiB; PDF up to 10 MiB) → 201 `{ id, name, mime, size, createdAt, url }` |
 | `GET /files?page=&type=image\|pdf` | Bearer | File library, 50 per page, newest first → `{ items, page, totalPages, total }` |
 | `GET /files/:id` | — | Serves the file bytes (see [Files](#files)) |
-| `GET /files/:id/references` | Bearer | Items whose fields contain the file URL, drafts included → `[{ collection, id, title, status? }]` |
-| `DELETE /files/:id` | Bearer | Deletes a file (204) |
+| `GET /files/:id/references` | Bearer | Items whose fields contain the file URL, drafts included, plus one `resume` entry per language the file is the resume of → `[{ collection, id, title, status? }]` |
+| `DELETE /files/:id` | Bearer | Deletes a file (204); 409 `File is the current resume.` while it is assigned as a resume |
+| `GET /resume?lang=en\|es` | — | The current resume PDF (see [Resume](#resume)); 404 when none is assigned, 400 for another `lang` |
+| `GET /resume/assignments` | Bearer | `{ en, es }`, each `{ file: { id, name, mime, size, createdAt, url }, assignedAt }` or `null` |
+| `PUT /resume/assignments/:lang` | Bearer | `{ fileId }` of a PDF in the library → 200 with the full assignment |
+| `DELETE /resume/assignments/:lang` | Bearer | Clears a language (204); the file stays in the library |
 
 `<collection>` is one of `testimonials` (with review routes, see [Testimonials](#testimonials)), `highlights`, `social-links`, `technologies`, `contact-info` and `certifications`, plus `experiences` (same routes, ordered by `current` first, then `startDate` descending with undated entries last). Projects and posts have their own routes (see [Projects and posts](#projects-and-posts)). Errors always have the shape `{ error, fields? }`. CORS only allows the origins enabled in the `cors_origin` table (see [CORS origins](#cors-origins)).
 
@@ -107,6 +111,15 @@ The owner's emails go through Brevo from the `mail` module (`src/app/mail`): `Ma
 ### Files
 Uploads are stored in the `file` table (`bytea`), not on disk or an external service. The type is detected from the content (magic bytes), never from the name or `Content-Type`. File URLs are absolute, built from `API_PUBLIC_URL` (default `https://api.figueroa-sanchez.com`; set it in `.env` for local runs, e.g. `http://localhost:3000`) and never change. `GET /files/:id` is public and answers with the exact type, `X-Content-Type-Options: nosniff`, a `Content-Security-Policy` ending in `sandbox` (so scripts in an uploaded SVG never run when its URL is opened), `Cache-Control: public, max-age=31536000, immutable` and `Cross-Origin-Resource-Policy: cross-origin`.
 
+### Resume
+The resume is an ordinary PDF of the file library (uploaded with `POST /files`); the `resume` table only records which file is current for English and for Spanish (Spec 005). `GET /resume` is its stable public URL: it never changes when the PDF is replaced, so the web can link to it once.
+
+- **Languages:** English is the base. `GET /resume` without `lang` serves English, and `?lang=es` falls back to English when no Spanish resume is assigned; English never falls back to Spanish. Any other `lang` (including an empty or repeated one) answers 400 with a `lang` field error, unlike the content reads.
+- **Assigning:** `PUT /resume/assignments/:lang` replaces the language's current file; the previous one stays in the library. Assigning the current file again changes nothing (`assignedAt` is kept). Errors: 404 for a file not in the library, 400 on `fileId` for a malformed id or a file whose detected type is not PDF, 400 on `lang` for anything but `en`/`es`, 409 `Assign an English resume first.` for Spanish without English.
+- **Clearing:** `DELETE /resume/assignments/:lang` answers 204, also when the language had no resume; clearing English while a Spanish resume is assigned answers 409 `Clear the Spanish resume first.`
+- **Caching:** `GET /resume` sends the same protective headers as `GET /files/:id` (`nosniff`, the sandboxing CSP, `Cross-Origin-Resource-Policy: cross-origin`) with `Cache-Control: no-cache` instead of `immutable`, plus an `ETag`: caches revalidate on every request, so a replacement is served at once and an unchanged PDF costs a 304.
+- **File library:** a file that is a current resume cannot be deleted (409, also enforced by the `ON DELETE RESTRICT` foreign key) and its references list `{ collection: 'resume', id: 'en' | 'es', title }`. It is still served at its own immutable `/files/:id` URL.
+
 ## Database
 The only setting that lives in the environment is `DATABASE_URL` (plus `PORT` and, for local runs, the non-secret `API_PUBLIC_URL`). Application secrets live in the `property` table (see [Properties](#properties)).
 
@@ -144,6 +157,11 @@ env:
 ```bash
 psql "${DATABASE_URL%%\?*}" -v ON_ERROR_STOP=1 -f prisma/sql/initial-content.sql
 ```
+
+### Release order for resume management (version 6.1.0)
+1. Run `pnpm prisma migrate deploy` against production **before** merging. The `resume` migration only creates the `resume` table (primary key `lang` with a CHECK for `en`/`es`, and a `file_id` foreign key to `file` with `ON DELETE RESTRICT`); it touches no existing rows and the current version ignores it.
+2. Merge to `main`, which releases the API. `GET /resume` answers 404 until a resume is assigned.
+3. Assign the resumes with a PDF already in the library: `PUT /resume/assignments/en`, then `/es` (before the panel and web versions that use them).
 
 ### Release order for the Spanish version (version 6.0.0)
 1. Run `pnpm prisma migrate deploy` against production **before** merging. `bilingual_content` adds the nullable `*_es` columns (existing content stays English), the unique `coalesce(slug_es, slug)` indexes on `project` and `post`, makes the testimonial `quote` and `role` nullable and adds a CHECK that approved testimonials keep them.
