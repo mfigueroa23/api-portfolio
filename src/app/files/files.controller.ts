@@ -56,7 +56,7 @@ export class FilesController {
   @Get(':id/references')
   @UseGuards(JwtAuthGuard)
   async references(@Param('id') id: string): Promise<FileReference[]> {
-    return this.fileReferences.find(await this.files.urlOf(id));
+    return this.fileReferences.find(id, await this.files.urlOf(id));
   }
 
   @Delete(':id')

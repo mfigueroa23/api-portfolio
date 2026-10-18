@@ -3,7 +3,8 @@ import { PrismaService } from '../database/prisma.service.js';
 import { FileReferencesService } from './file-references.service.js';
 
 const BASE = 'https://api.figueroa-sanchez.com/files/';
-const URL = `${BASE}2b1e0a4c-5d3f-4e2a-9b8c-7d6e5f4a3b2c`;
+const ID = '2b1e0a4c-5d3f-4e2a-9b8c-7d6e5f4a3b2c';
+const URL = `${BASE}${ID}`;
 // Same id with one more character: must not count as a reference.
 const NEAR_MISS = `${URL}d`;
 const OTHER = `${BASE}2b1e0a4c-5d3f-4e2a-9b8c-7d6e5f4a3b2d`;
@@ -53,7 +54,7 @@ describe('FileReferencesService', () => {
       data: { author: 'Grace Hopper', quote: 'Great.', avatar: URL },
     });
 
-    await expect(service.find(URL)).resolves.toEqual([
+    await expect(service.find(ID, URL)).resolves.toEqual([
       { collection: 'projects', id: 1, title: 'By image', status: 'published' },
       { collection: 'projects', id: 2, title: 'By body', status: 'draft' },
       { collection: 'experience', id: 1, title: 'Engineer · Acme' },
@@ -81,7 +82,7 @@ describe('FileReferencesService', () => {
       data: { author: 'A', quote: 'Q', avatar: '/avatars/a.png' },
     });
 
-    await expect(service.find(URL)).resolves.toEqual([]);
+    await expect(service.find(ID, URL)).resolves.toEqual([]);
   });
 
   it('matches the URL followed by punctuation or a query', async () => {
@@ -89,6 +90,28 @@ describe('FileReferencesService', () => {
       data: { slug: 'q', title: 'Query', body: `<${URL}?download=1>` },
     });
 
-    await expect(service.find(URL)).resolves.toHaveLength(1);
+    await expect(service.find(ID, URL)).resolves.toHaveLength(1);
+  });
+
+  it('adds one resume entry per language the file is assigned to (U-F2)', async () => {
+    await prisma.certification.create({
+      data: { name: 'AWS SAA', issuer: 'Amazon', fileUrl: URL },
+    });
+    await prisma.resume.create({ data: { lang: 'es', fileId: ID } });
+    await prisma.resume.create({ data: { lang: 'en', fileId: ID } });
+
+    await expect(service.find(ID, URL)).resolves.toEqual([
+      { collection: 'certifications', id: 1, title: 'AWS SAA' },
+      { collection: 'resume', id: 'en', title: 'English resume' },
+      { collection: 'resume', id: 'es', title: 'Spanish resume' },
+    ]);
+  });
+
+  it('adds no resume entry for a PDF that is not assigned', async () => {
+    await prisma.resume.create({
+      data: { lang: 'en', fileId: '2b1e0a4c-5d3f-4e2a-9b8c-7d6e5f4a3b2d' },
+    });
+
+    await expect(service.find(ID, URL)).resolves.toEqual([]);
   });
 });

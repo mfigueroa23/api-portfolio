@@ -67,13 +67,13 @@
 
 ## Phase 3 — File library integration
 
-- [ ] **T10 — Refuse deleting a file in use**
+- [x] **T10 — Refuse deleting a file in use**
   - **RF:** RF-20
   - **Depends on:** T03, T04
   - **Scope:** `FilesService.remove` answers `ConflictException('File is the current resume.')` when a resume points at the file, and turns a P2003 into the same 409 (D3).
   - **Done when:** U-F1 passes. It covers 409 while assigned, deletion once cleared, and a mocked P2003 → 409.
 
-- [ ] **T11 — Resume entries in file references**
+- [x] **T11 — Resume entries in file references**
   - **RF:** RF-21
   - **Depends on:** T03, T04
   - **Scope:** `FileReferencesService.find` takes the id and adds `{ collection: 'resume', id: <lang>, title }` per assigned language. `FileReference` widens (D10), and `FilesController.references` passes the id.

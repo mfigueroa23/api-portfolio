@@ -81,7 +81,7 @@ describe('FilesController', () => {
     expect(res.send).toHaveBeenCalledWith(data);
   });
 
-  it('looks references up by the file URL', async () => {
+  it('looks references up by the file id and URL', async () => {
     const found = [{ collection: 'posts', id: 1, title: 'A', status: 'draft' }];
     files.urlOf.mockResolvedValue(`https://api.example.com/files/${id}`);
     references.find.mockResolvedValue(found);
@@ -89,6 +89,7 @@ describe('FilesController', () => {
     await expect(controller.references(id)).resolves.toEqual(found);
     expect(files.urlOf).toHaveBeenCalledWith(id);
     expect(references.find).toHaveBeenCalledWith(
+      id,
       `https://api.example.com/files/${id}`,
     );
   });

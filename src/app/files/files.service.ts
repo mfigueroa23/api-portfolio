@@ -1,8 +1,10 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '../../generated/prisma/client.js';
 import { TOO_LARGE } from '../common/middlewares/raw-body.middleware.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { FileKind } from './dto/files-query.dto.js';
@@ -13,6 +15,7 @@ const IMAGE_LIMIT_BYTES = 5 * MIB;
 const PDF_LIMIT_BYTES = 10 * MIB;
 const MAX_NAME_LENGTH = 200;
 const PAGE_SIZE = 50;
+const RESUME_IN_USE = 'File is the current resume.';
 const DEFAULT_PUBLIC_URL = 'https://api.figueroa-sanchez.com';
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -129,10 +132,25 @@ export class FilesService {
     return (await this.meta(id)).url;
   }
 
+  // A current resume cannot be deleted (Spec 005, RF-20). The check gives the
+  // 409; the foreign key (Restrict, P2003) covers an assignment made between
+  // the check and the delete.
   async remove(id: string): Promise<void> {
-    const { count } = UUID_PATTERN.test(id)
-      ? await this.prisma.file.deleteMany({ where: { id } })
-      : { count: 0 };
+    if (!UUID_PATTERN.test(id)) throw new NotFoundException('Not found.');
+    if (await this.prisma.resume.count({ where: { fileId: id } })) {
+      throw new ConflictException(RESUME_IN_USE);
+    }
+    const { count } = await this.prisma.file
+      .deleteMany({ where: { id } })
+      .catch((error: unknown) => {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2003'
+        ) {
+          throw new ConflictException(RESUME_IN_USE);
+        }
+        throw error;
+      });
     if (count === 0) throw new NotFoundException('Not found.');
   }
 
