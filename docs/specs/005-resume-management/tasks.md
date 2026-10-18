@@ -6,11 +6,12 @@
 
 ## Phase 0 — Gate
 
-- [ ] **T01 — Approvals before any code**
+- [x] **T01 — Approvals before any code**
   - **RF:** RF-17 (and the persistence behind RF-01, RF-03, RF-10, RF-20)
   - **Depends on:** —
   - **Scope:** the owner approves the `prisma/schema.prisma` change (plan, Data model) and confirms D8: strict `?lang` returning 400, or amend RF-17 to the lenient rule of the content reads.
   - **Done when:** the approval is recorded in this file, and `spec.md` (RF-17) and `plan.md` (D8) agree with the chosen rule.
+  - **Approval (2026-10-18, owner):** the `prisma/schema.prisma` change is approved as described in the plan (Data model, D1–D3): the `Resume` model and the `File.resumes` back-relation, through the `resume` migration. D8 is confirmed strict: a `?lang` other than `en` or `es` answers 400 with a `lang` field error. RF-17 and D8 already state this rule and stay unchanged.
 
 ## Phase 1 — Foundations
 
