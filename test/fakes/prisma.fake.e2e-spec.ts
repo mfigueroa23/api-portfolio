@@ -437,6 +437,73 @@ describe('PrismaFake', () => {
     },
   );
 
+  describe('resume (Spec 005)', () => {
+    it('keys rows by lang with an assignedAt default and no other timestamps', async () => {
+      const row = await prisma.resume.create({
+        data: { lang: 'en', fileId: 'f1' },
+      });
+
+      expect(row).toEqual({
+        lang: 'en',
+        fileId: 'f1',
+        assignedAt: expect.any(Date),
+      });
+      expect(
+        await prisma.resume.findUnique({ where: { lang: 'en' } }),
+      ).toMatchObject({ fileId: 'f1' });
+      await prisma.resume.delete({ where: { lang: 'en' } });
+      expect(prisma.resume.rows).toEqual([]);
+    });
+
+    it('upserts: creates the row when it is missing', async () => {
+      const row = await prisma.resume.upsert({
+        where: { lang: 'es' },
+        create: { lang: 'es', fileId: 'f1' },
+        update: { fileId: 'f2' },
+      });
+
+      expect(row).toMatchObject({ lang: 'es', fileId: 'f1' });
+      expect(prisma.resume.rows).toHaveLength(1);
+    });
+
+    it('upserts: updates the existing row and keeps its other fields', async () => {
+      const assignedAt = new Date('2026-01-01T00:00:00Z');
+      await prisma.resume.create({
+        data: { lang: 'en', fileId: 'f1', assignedAt },
+      });
+
+      const row = await prisma.resume.upsert({
+        where: { lang: 'en' },
+        create: { lang: 'en', fileId: 'f3' },
+        update: { fileId: 'f2' },
+      });
+
+      expect(row).toEqual({ lang: 'en', fileId: 'f2', assignedAt });
+      expect(prisma.resume.rows).toEqual([
+        { lang: 'en', fileId: 'f2', assignedAt },
+      ]);
+    });
+  });
+
+  it('upserts on any model, leaving omitted fields out', async () => {
+    const created = await prisma.technology.upsert({
+      where: { id: 1 },
+      create: { position: 0, name: 'Angular' },
+      update: { name: 'never' },
+      omit: { position: true },
+    });
+    const updated = await prisma.technology.upsert({
+      where: { id: 1 },
+      create: { position: 0, name: 'never' },
+      update: { name: 'NestJS' },
+    });
+
+    expect(created).toMatchObject({ id: 1, name: 'Angular' });
+    expect(created).not.toHaveProperty('position');
+    expect(updated).toMatchObject({ id: 1, position: 0, name: 'NestJS' });
+    expect(await prisma.technology.count()).toBe(1);
+  });
+
   it('supports OR conditions and findFirst', async () => {
     await prisma.post.create({ data: { slug: 'a', title: 'A', slugEs: 'x' } });
     await prisma.post.create({ data: { slug: 'b', title: 'B' } });

@@ -1,6 +1,11 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaFake } from '../../../test/fakes/prisma.fake.js';
 import { samples } from '../../../test/fixtures/file-samples.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import { TOO_LARGE } from '../common/middlewares/raw-body.middleware.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { FilesService } from './files.service.js';
@@ -175,6 +180,32 @@ describe('FilesService', () => {
     });
   });
 
+  describe('meta', () => {
+    it('returns the metadata and public URL without the bytes', async () => {
+      const stored = await service.store('cv.pdf', samples.pdf);
+
+      const meta = await service.meta(stored.id);
+
+      expect(meta).toEqual(stored);
+      expect(meta).not.toHaveProperty('data');
+      await expect(service.urlOf(stored.id)).resolves.toBe(
+        `http://localhost:3000/files/${stored.id}`,
+      );
+    });
+
+    it.each(['2b1e0a4c-5d3f-4e2a-9b8c-7d6e5f4a3b2c', 'not-a-uuid'])(
+      'answers 404 for an unknown id (%s)',
+      async (id) => {
+        await expect(service.meta(id)).rejects.toEqual(
+          new NotFoundException('Not found.'),
+        );
+        await expect(service.urlOf(id)).rejects.toEqual(
+          new NotFoundException('Not found.'),
+        );
+      },
+    );
+  });
+
   describe('read and remove', () => {
     it('reads the bytes, type and name of a file', async () => {
       const stored = await service.store('a.svg', samples.svg);
@@ -197,6 +228,35 @@ describe('FilesService', () => {
         );
       },
     );
+
+    it('answers 409 while the file is a current resume, and deletes it once cleared (U-F1)', async () => {
+      const stored = await service.store('cv.pdf', samples.pdf);
+      await prisma.resume.create({ data: { lang: 'en', fileId: stored.id } });
+
+      await expect(service.remove(stored.id)).rejects.toEqual(
+        new ConflictException('File is the current resume.'),
+      );
+      expect(prisma.file.rows).toHaveLength(1);
+
+      prisma.resume.rows = [];
+      await service.remove(stored.id);
+
+      expect(prisma.file.rows).toEqual([]);
+    });
+
+    it('turns a foreign key error from the database into the same 409', async () => {
+      const stored = await service.store('cv.pdf', samples.pdf);
+      vi.spyOn(prisma.file, 'deleteMany').mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Foreign key failed.', {
+          code: 'P2003',
+          clientVersion: Prisma.prismaVersion.client,
+        }),
+      );
+
+      await expect(service.remove(stored.id)).rejects.toEqual(
+        new ConflictException('File is the current resume.'),
+      );
+    });
 
     it('deletes a file', async () => {
       const stored = await service.store('a.png', samples.png);

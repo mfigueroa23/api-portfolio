@@ -279,4 +279,52 @@ describe('/files (e2e)', () => {
       expect(again.status).toBe(404);
     });
   });
+
+  describe('a file that is the current resume (Spec 005, E10)', () => {
+    it('refuses deletion with 409, lists the resume and stays immutable at its own URL', async () => {
+      const stored = await upload('Marco CV.pdf', samples.pdf);
+      const id: string = stored.body.id;
+      const assign = (lang: string) =>
+        server()
+          .put(`/resume/assignments/${lang}`)
+          .set('Authorization', auth())
+          .send({ fileId: id });
+      await assign('en');
+      await assign('es');
+
+      const refused = await server()
+        .delete(`/files/${id}`)
+        .set('Authorization', auth());
+      const references = await server()
+        .get(`/files/${id}/references`)
+        .set('Authorization', auth());
+      const read = await server().get(`/files/${id}`);
+
+      expect(refused.status).toBe(409);
+      expect(refused.body).toEqual({ error: 'File is the current resume.' });
+      expect(prisma.file.rows).toHaveLength(1);
+      expect(references.status).toBe(200);
+      expect(references.body).toEqual([
+        { collection: 'resume', id: 'en', title: 'English resume' },
+        { collection: 'resume', id: 'es', title: 'Spanish resume' },
+      ]);
+      expect(read.status).toBe(200);
+      expect(read.headers['cache-control']).toBe(
+        'public, max-age=31536000, immutable',
+      );
+
+      for (const lang of ['es', 'en']) {
+        const cleared = await server()
+          .delete(`/resume/assignments/${lang}`)
+          .set('Authorization', auth());
+        expect(cleared.status).toBe(204);
+      }
+      const removed = await server()
+        .delete(`/files/${id}`)
+        .set('Authorization', auth());
+
+      expect(removed.status).toBe(204);
+      expect(prisma.file.rows).toEqual([]);
+    });
+  });
 });

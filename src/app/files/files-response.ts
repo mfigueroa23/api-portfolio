@@ -25,3 +25,9 @@ export function fileHeaders(file: ServedFile): Record<string, string> {
     'Cross-Origin-Resource-Policy': 'cross-origin',
   };
 }
+
+// Headers of GET /resume (Spec 005): the same protections, but the URL serves
+// whichever PDF is current, so caches may keep it only if they revalidate.
+export function resumeHeaders(file: ServedFile): Record<string, string> {
+  return { ...fileHeaders(file), 'Cache-Control': 'no-cache' };
+}

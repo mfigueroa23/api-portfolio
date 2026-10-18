@@ -215,6 +215,14 @@ export class FakeModel<T extends Row = Row> {
     return Promise.resolve(project(row, args.omit));
   }
 
+  // Creates the row when `where` matches none, otherwise applies `update`.
+  upsert(args: { where: Where; create: Row; update: Row; omit?: Omit }) {
+    const exists = this.rows.some((row) => matches(row, args.where));
+    return exists
+      ? this.update({ where: args.where, data: args.update, omit: args.omit })
+      : this.create({ data: args.create, omit: args.omit });
+  }
+
   updateMany(args: { where?: Where; data: Row }) {
     const rows = this.rows.filter((row) => matches(row, args.where));
     const now = new Date();
@@ -302,6 +310,9 @@ export class PrismaFake {
     }),
   });
   file = new FakeModel('id', ['createdAt'], { uuid: true });
+  resume = new FakeModel('lang', [], {
+    defaults: () => ({ assignedAt: new Date() }),
+  });
 
   $connect(): Promise<void> {
     return Promise.resolve();

@@ -4,8 +4,14 @@ import { PrismaService } from '../database/prisma.service.js';
 export interface FileReference {
   // The panel's collection key.
   collection:
-    'projects' | 'experience' | 'posts' | 'certifications' | 'testimonials';
-  id: number;
+    | 'projects'
+    | 'experience'
+    | 'posts'
+    | 'certifications'
+    | 'testimonials'
+    | 'resume';
+  // A resume is keyed by its language (plan D10 of Spec 005).
+  id: number | string;
   title: string;
   status?: 'draft' | 'published';
 }
@@ -24,14 +30,16 @@ function textsOf(value: unknown): string[] {
   return [];
 }
 
+const RESUME_TITLES = { en: 'English resume', es: 'Spanish resume' };
+
 // Finds every content item, draft or published, whose URL-bearing fields
-// contain a file's URL. A single owner's content is a few hundred rows, so it
+// contain a file's URL, plus the languages the file is the resume of. A single owner's content is a few hundred rows, so it
 // is scanned in memory (plan D13) instead of with per-table SQL.
 @Injectable()
 export class FileReferencesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async find(url: string): Promise<FileReference[]> {
+  async find(id: string, url: string): Promise<FileReference[]> {
     // The URL must not continue with an id character, so `…/files/<id>x`
     // never counts as `…/files/<id>`.
     const pattern = new RegExp(`${escapeRegExp(url)}(?![0-9A-Za-z-])`);
@@ -39,14 +47,24 @@ export class FileReferencesService {
       values.flatMap(textsOf).some((text) => pattern.test(text));
     const byId = { orderBy: { id: 'asc' as const } };
 
-    const [projects, experiences, posts, certifications, testimonials] =
-      await Promise.all([
-        this.prisma.project.findMany(byId),
-        this.prisma.experience.findMany(byId),
-        this.prisma.post.findMany(byId),
-        this.prisma.certification.findMany(byId),
-        this.prisma.testimonial.findMany(byId),
-      ]);
+    const [
+      projects,
+      experiences,
+      posts,
+      certifications,
+      testimonials,
+      resumes,
+    ] = await Promise.all([
+      this.prisma.project.findMany(byId),
+      this.prisma.experience.findMany(byId),
+      this.prisma.post.findMany(byId),
+      this.prisma.certification.findMany(byId),
+      this.prisma.testimonial.findMany(byId),
+      this.prisma.resume.findMany({
+        where: { fileId: id },
+        orderBy: { lang: 'asc' },
+      }),
+    ]);
 
     return [
       ...projects
@@ -86,6 +104,11 @@ export class FileReferencesService {
           id: row.id,
           title: row.author,
         })),
+      ...resumes.map((row): FileReference => ({
+        collection: 'resume',
+        id: row.lang,
+        title: RESUME_TITLES[row.lang as keyof typeof RESUME_TITLES],
+      })),
     ];
   }
 }
