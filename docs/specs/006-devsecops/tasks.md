@@ -8,19 +8,19 @@ No Phase 0: every approval in the plan was granted on 2026-10-27 (D3, D13, `AGEN
 
 ## Phase 1 — Scripts and adoption baseline
 
-- [ ] **T01 — SCA gate script and exceptions file**
+- [x] **T01 — SCA gate script and exceptions file**
   - **RF:** RF-30, RF-31, RF-32, RF-34, RF-35, RF-38, RF-39, RF-40
   - **Depends on:** — (can run in parallel with T02)
   - **Scope:** Copy `../web/scripts/sca-gate.mjs` and `sca-gate.test.mjs` into `scripts/`, changing only the header's spec reference to "Spec 006" (D5, D6). Add `.github/sca-exceptions.json` with `[]`.
   - **Done when:** `node --test scripts/sca-gate.test.mjs` passes U-SG-1–U-SG-11; `diff ../web/scripts/sca-gate.mjs scripts/sca-gate.mjs` shows only the header lines.
 
-- [ ] **T02 — Dependabot bump script**
+- [x] **T02 — Dependabot bump script**
   - **RF:** RF-19, RF-20, RF-21, RF-22, RF-23, RF-24, RF-25, RF-27
   - **Depends on:** — (can run in parallel with T01)
   - **Scope:** Copy `../web/scripts/dependabot-bump.mjs` and `dependabot-bump.test.mjs` into `scripts/`, changing only the header's spec reference; adapt the U-DB-3/U-DB-4 fixture and the version examples to `api`'s `package.json` (D6, D7, D15, D1).
   - **Done when:** `node --test scripts/dependabot-bump.test.mjs` passes U-DB-1–U-DB-15; `diff` against web's script shows only the header lines; `grep -nE "'(git|pnpm|npm)'" scripts/dependabot-bump.mjs` finds no process call to them.
 
-- [ ] **T03 — Fix the blocking lockfile findings at adoption**
+- [x] **T03 — Fix the blocking lockfile findings at adoption**
   - **RF:** RF-30
   - **Depends on:** T01
   - **Scope:** Download Grype `v0.120.1` into the scratchpad (never a project dependency) and scan `pnpm-lock.yaml`; run `node scripts/sca-gate.mjs --title Lockfile --report grype.json`. Fix each blocking finding with in-range updates, adding an `overrides` entry in `pnpm-workspace.yaml` (with a comment naming the advisory and when to remove it) only where a dependency pins the vulnerable version (D14). One `build(deps)` commit.

@@ -2,3 +2,16 @@ allowBuilds:
   '@prisma/engines': false
   esbuild: false
   prisma: false
+
+# Dependencies that pin a vulnerable version (Spec 006, plan D14). Remove each entry once its
+# parent depends on a fixed version.
+overrides:
+  # @nestjs/platform-express 12.2.0 pins multer 2.4.0 (GHSA-q7qp-rjg7-q26m, fixed in 2.5.0);
+  # 12.3 depends on 2.5.0.
+  '@nestjs/platform-express>multer': 2.5.0
+  # @nestjs/mau 0.2.x (dev only, `nest deploy`) pins undici 6.20.1, affected by several high
+  # advisories fixed up to 6.28.1.
+  '@nestjs/mau>undici': 6.29.1
+  # external-editor 3.1.0, through @nestjs/mau's inquirer, needs tmp ^0.0.33 (GHSA-ph9p-34f9-6g65,
+  # fixed in 0.2.6).
+  'external-editor>tmp': 0.2.7
