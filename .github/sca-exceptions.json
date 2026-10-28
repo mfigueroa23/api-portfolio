@@ -1,1 +1,7 @@
-[]
+[
+  {
+    "id": "CVE-2025-60876",
+    "reason": "Alpine busybox, busybox-binsh and ssl_client have no fixed version yet; the runtime image only runs busybox wget in its HEALTHCHECK against 127.0.0.1, with no user-controlled input (Spec 007)",
+    "expires": "2027-01-26"
+  }
+]
