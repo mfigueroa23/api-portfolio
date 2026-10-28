@@ -18,6 +18,11 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # TypeScript 7.0 ships no compiler API, which `nest build` needs; 7.1 is expected to restore it.
+      - dependency-name: typescript
+        versions:
+          - '>=7.0.0 <7.1.0'
     # Written out instead of `include: scope`, which would give devDependencies `build(deps-dev)`.
     commit-message:
       prefix: 'build(deps)'
