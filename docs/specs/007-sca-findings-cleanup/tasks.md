@@ -30,13 +30,13 @@
 
 ## Phase 3 — Verification and release
 
-- [ ] **T04 — Local quality gate**
+- [x] **T04 — Local quality gate**
   - **RF:** RF-12, RF-13
   - **Depends on:** T02, T03
   - **Scope:** Run the `AGENTS.md` closing checklist on the branch and confirm the untouched areas (plan Infrastructure: no README, AGENTS.md or migration change).
   - **Done when:** E2 holds: `pnpm lint`, `pnpm test`, `pnpm test:e2e`, `pnpm build` and `pnpm exec prettier --check "src/**/*.ts" "test/**/*.ts" .github/sca-exceptions.json` pass, and `git diff main --stat` shows nothing under `src/`, `test/`, `scripts/`, `.github/workflows/`, `prisma/` or `Dockerfile`.
 
-- [ ] **T05 — Bump the version to 6.2.7**
+- [x] **T05 — Bump the version to 6.2.7**
   - **RF:** —
   - **Depends on:** T04
   - **Scope:** `version` in `package.json` 6.2.6 → 6.2.7 (D8), nothing else in the file.
