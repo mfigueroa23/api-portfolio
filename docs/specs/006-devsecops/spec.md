@@ -21,24 +21,24 @@ repositories are governed alike.
 
 ## Decisions
 
-| Topic | Decision |
-|---|---|
-| Scope | Full parity with `web` Spec 009, adapted to the single `portfolio-api` image. |
-| CodeQL setup | Versioned advanced setup replaces the default setup; languages `actions` and `javascript-typescript`; `security-extended` suite. |
-| CodeQL triggers | Every PR into `main`, every push to `main` and a daily scheduled scan (default, as in web). |
-| CodeQL gating | A new alert of high or critical security severity blocks the merge (default, as in web). |
-| Dependabot ecosystems | npm (pnpm), GitHub Actions and Docker base images; weekly version updates, minor and patch grouped per ecosystem, each major in its own PR; security updates for npm and Actions open immediately. |
-| Base images | Every `Dockerfile` stage pins `node:26-alpine` by tag and digest, so Dependabot proposes digest updates weekly and builds are reproducible. Approved by the owner on 2026-10-27. |
-| Docker security updates | Not available (GitHub has no advisories for container images); covered by the weekly digest updates and the release image scan (as in web). |
-| Version bump | Every Dependabot PR carries one `chore(release): Bump version to vX.Y.Z` commit with `main`'s version plus one patch, recomputed when `main`'s version changes (as in web). |
-| Auto-merge | None: every merge deploys, so the owner reviews each Dependabot PR. |
-| SCA scope | `pnpm-lock.yaml` on every PR into `main` and daily; the `portfolio-api` image (both platforms) in the release before it is published; an SBOM per published image. |
-| SCA gating | Critical or high findings with a fixed version block; findings without a fix are reported only. |
-| Exceptions | A versioned exceptions file; each entry needs the advisory id, a reason and an expiry date (as in web). |
-| Findings at adoption | Blocking findings present when this spec lands are fixed in its branch with in-range updates (`build(deps)` commits), using a dependency override only where a package pins a vulnerable version. Approved by the owner on 2026-10-27. |
-| Reporting | Findings appear in the repository's Security tab (code scanning) and in the job summary. |
-| Dependency build scripts | One project command records the approval or denial of build scripts in `allowBuilds` of `pnpm-workspace.yaml`; an unapproved new build script still fails the install (as in web). |
-| This spec's version | Minor bump (new CI capability). |
+| Topic                    | Decision                                                                                                                                                                                                                               |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scope                    | Full parity with `web` Spec 009, adapted to the single `portfolio-api` image.                                                                                                                                                          |
+| CodeQL setup             | Versioned advanced setup replaces the default setup; languages `actions` and `javascript-typescript`; `security-extended` suite.                                                                                                       |
+| CodeQL triggers          | Every PR into `main`, every push to `main` and a daily scheduled scan (default, as in web).                                                                                                                                            |
+| CodeQL gating            | A new alert of high or critical security severity blocks the merge (default, as in web).                                                                                                                                               |
+| Dependabot ecosystems    | npm (pnpm), GitHub Actions and Docker base images; weekly version updates, minor and patch grouped per ecosystem, each major in its own PR; security updates for npm and Actions open immediately.                                     |
+| Base images              | Every `Dockerfile` stage pins `node:26-alpine` by tag and digest, so Dependabot proposes digest updates weekly and builds are reproducible. Approved by the owner on 2026-10-27.                                                       |
+| Docker security updates  | Not available (GitHub has no advisories for container images); covered by the weekly digest updates and the release image scan (as in web).                                                                                            |
+| Version bump             | Every Dependabot PR carries one `chore(release): Bump version to vX.Y.Z` commit with `main`'s version plus one patch, recomputed when `main`'s version changes (as in web).                                                            |
+| Auto-merge               | None: every merge deploys, so the owner reviews each Dependabot PR.                                                                                                                                                                    |
+| SCA scope                | `pnpm-lock.yaml` on every PR into `main` and daily; the `portfolio-api` image (both platforms) in the release before it is published; an SBOM per published image.                                                                     |
+| SCA gating               | Critical or high findings with a fixed version block; findings without a fix are reported only.                                                                                                                                        |
+| Exceptions               | A versioned exceptions file; each entry needs the advisory id, a reason and an expiry date (as in web).                                                                                                                                |
+| Findings at adoption     | Blocking findings present when this spec lands are fixed in its branch with in-range updates (`build(deps)` commits), using a dependency override only where a package pins a vulnerable version. Approved by the owner on 2026-10-27. |
+| Reporting                | Findings appear in the repository's Security tab (code scanning) and in the job summary.                                                                                                                                               |
+| Dependency build scripts | One project command records the approval or denial of build scripts in `allowBuilds` of `pnpm-workspace.yaml`; an unapproved new build script still fails the install (as in web).                                                     |
+| This spec's version      | Minor bump (new CI capability).                                                                                                                                                                                                        |
 
 ## Functional requirements
 

@@ -88,13 +88,13 @@ No Phase 0: every approval in the plan was granted on 2026-10-27 (D3, D13, `AGEN
 
 ## Phase 5 — Verification and release
 
-- [ ] **T13 — Quality gate**
+- [x] **T13 — Quality gate**
   - **RF:** RF-41, RF-46
   - **Depends on:** T12
   - **Scope:** The `AGENTS.md` closing checklist plus the script tests and Prettier on the touched YAML and Markdown.
   - **Done when:** `pnpm lint`, `pnpm test`, `pnpm test:e2e`, `pnpm build` and `node --test scripts/` pass; `pnpm exec prettier --check "src/**/*.ts" "test/**/*.ts"` and `pnpm exec prettier --check .github docs/specs/006-devsecops` are clean; `git status` shows nothing under `src/`, `test/` or `prisma/`.
 
-- [ ] **T14 — Version bump**
+- [x] **T14 — Version bump**
   - **RF:** —
   - **Depends on:** T13
   - **Scope:** `version` → `6.2.0` in `package.json`.
@@ -138,44 +138,44 @@ No Phase 0: every approval in the plan was granted on 2026-10-27 (D3, D13, `AGEN
 
 ## RF → tasks
 
-| RF | Tasks |
-|---|---|
-| RF-01 | T05, T18 |
-| RF-02 | T05, T16 |
-| RF-03 | T05, T19 |
-| RF-04 | T05, T20 |
-| RF-05 | T05, T18 |
-| RF-06, RF-07 | T17, T18 |
-| RF-08 | T05, T18 |
-| RF-09 | T16 |
-| RF-10 | T10, T20 |
-| RF-11 | T08, T20 |
-| RF-12, RF-13 | T10, T20 |
-| RF-14 | T12, T18 |
-| RF-15, RF-16 | T10, T15, T20 |
-| RF-17 | T04, T09, T20 |
-| RF-18 | T10, T20 |
-| RF-19 | T02, T07, T20 |
-| RF-20 | T02, T20 |
-| RF-21 | T02, T07, T20 |
-| RF-22 | T02, T20 |
-| RF-23, RF-24 | T02, T07, T20 |
-| RF-25 | T02, T20 |
-| RF-26 | T07, T18 |
-| RF-27 | T02, T15, T20 |
-| RF-28 | T06, T16 |
-| RF-29 | T06, T20 |
-| RF-30 | T01, T03, T06, T17, T18 |
-| RF-31, RF-32 | T01, T06, T18 |
-| RF-33 | T08, T09, T19 |
-| RF-34 | T01, T08, T09 |
-| RF-35 | T01, T08, T09, T19 |
-| RF-36, RF-37 | T09, T19 |
-| RF-38, RF-39, RF-40 | T01, T18 |
-| RF-41 | T04, T13, T16 |
-| RF-42 | T09, T19 |
-| RF-43 | T05, T06, T07, T09, T18 |
-| RF-44 | T07, T09, T18 |
-| RF-45 | T11, T12 |
-| RF-46 | T04, T11, T13, T19 |
-| RF-47 | T11, T18 |
+| RF                  | Tasks                   |
+| ------------------- | ----------------------- |
+| RF-01               | T05, T18                |
+| RF-02               | T05, T16                |
+| RF-03               | T05, T19                |
+| RF-04               | T05, T20                |
+| RF-05               | T05, T18                |
+| RF-06, RF-07        | T17, T18                |
+| RF-08               | T05, T18                |
+| RF-09               | T16                     |
+| RF-10               | T10, T20                |
+| RF-11               | T08, T20                |
+| RF-12, RF-13        | T10, T20                |
+| RF-14               | T12, T18                |
+| RF-15, RF-16        | T10, T15, T20           |
+| RF-17               | T04, T09, T20           |
+| RF-18               | T10, T20                |
+| RF-19               | T02, T07, T20           |
+| RF-20               | T02, T20                |
+| RF-21               | T02, T07, T20           |
+| RF-22               | T02, T20                |
+| RF-23, RF-24        | T02, T07, T20           |
+| RF-25               | T02, T20                |
+| RF-26               | T07, T18                |
+| RF-27               | T02, T15, T20           |
+| RF-28               | T06, T16                |
+| RF-29               | T06, T20                |
+| RF-30               | T01, T03, T06, T17, T18 |
+| RF-31, RF-32        | T01, T06, T18           |
+| RF-33               | T08, T09, T19           |
+| RF-34               | T01, T08, T09           |
+| RF-35               | T01, T08, T09, T19      |
+| RF-36, RF-37        | T09, T19                |
+| RF-38, RF-39, RF-40 | T01, T18                |
+| RF-41               | T04, T13, T16           |
+| RF-42               | T09, T19                |
+| RF-43               | T05, T06, T07, T09, T18 |
+| RF-44               | T07, T09, T18           |
+| RF-45               | T11, T12                |
+| RF-46               | T04, T11, T13, T19      |
+| RF-47               | T11, T18                |
