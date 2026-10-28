@@ -28,25 +28,25 @@ No Phase 0: every approval in the plan was granted on 2026-10-27 (D3, D13, `AGEN
 
 ## Phase 2 — Pull request workflows
 
-- [ ] **T04 — Script tests in `API Tests`**
+- [x] **T04 — Script tests in `API Tests`**
   - **RF:** RF-17, RF-41, RF-46
   - **Depends on:** T01, T02
   - **Scope:** `.github/workflows/test.yaml`: step `Script Tests` (`node --test scripts/`) after `E2E Tests`; `# vX.Y.Z` comments on the existing pins (D10). Job name `Lint, Tests & Build`, triggers and install unchanged.
   - **Done when:** `node --test scripts/` passes U-SG-1–U-SG-11 and U-DB-1–U-DB-15 locally; the job name in `test.yaml` is still `Lint, Tests & Build`; every `uses:` line has a SHA and a version comment.
 
-- [ ] **T05 — CodeQL advanced setup**
+- [x] **T05 — CodeQL advanced setup**
   - **RF:** RF-01, RF-02, RF-03, RF-04, RF-05, RF-08, RF-43
   - **Depends on:** — (can run in parallel with T04)
   - **Scope:** `.github/workflows/codeql.yaml` and `.github/codeql/codeql-config.yaml` as in the plan: matrix `actions` and `javascript-typescript`, `build-mode: none` (D1), `security-extended`, `paths-ignore` `dist`, `node_modules`, `coverage`, `src/generated`; web's pins (D4).
   - **Done when:** the workflow declares `pull_request` and `push` on `main`, `schedule` `0 7 * * *` and `workflow_dispatch`; its job permissions are only `actions: read`, `contents: read`, `security-events: write`; no step runs `pnpm`.
 
-- [ ] **T06 — Lockfile SCA workflow**
+- [x] **T06 — Lockfile SCA workflow**
   - **RF:** RF-28, RF-29, RF-30, RF-31, RF-32, RF-43
   - **Depends on:** T01, T03
   - **Scope:** `.github/workflows/sca.yaml` copied from web: job `Lockfile Scan` (checkout, `download-grype`, scan, `sca-gate.mjs`, `upload-sarif` category `sca-lockfile` under `if: always()`, skipped for fork PRs) (D1, D4, D5).
   - **Done when:** the workflow has `pull_request` into `main`, `schedule` `30 7 * * *` and `workflow_dispatch`; permissions `contents: read`, `security-events: write`; no install step; running its scan and gate commands locally exits 0 after T03.
 
-- [ ] **T07 — Dependabot bump workflow**
+- [x] **T07 — Dependabot bump workflow**
   - **RF:** RF-19, RF-21, RF-23, RF-24, RF-26, RF-43, RF-44
   - **Depends on:** T02
   - **Scope:** `.github/workflows/dependabot-bump.yaml` copied from web: `request` job (Dependabot-authored PRs, `actions: write` only, dispatches on `main`, D2) and `bump` job (`workflow_dispatch`, `push` to `main` on `package.json`, hourly schedule, App token from `vars.BUMP_APP_ID`/`secrets.BUMP_APP_PRIVATE_KEY`, `concurrency: dependabot-bump`) (D3).
