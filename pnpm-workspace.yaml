@@ -1,3 +1,8 @@
+# Dependencies allowed to run their build scripts on install (Spec 006, RF-45 to RF-47). An install
+# fails on any build script not listed here, also in CI and in Dependabot PRs, on purpose: approve
+# or deny the new package with `pnpm run approve-builds` and commit this file. The current three
+# stay denied: `pnpm build` runs `prisma generate` itself, the pg adapter needs no engine and
+# esbuild ships its binary as an optional dependency.
 allowBuilds:
   '@prisma/engines': false
   esbuild: false

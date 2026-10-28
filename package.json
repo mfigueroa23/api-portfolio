@@ -21,7 +21,8 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:e2e": "pnpm generate && vitest run --config ./vitest.config.e2e.ts"
+    "test:e2e": "pnpm generate && vitest run --config ./vitest.config.e2e.ts",
+    "approve-builds": "pnpm approve-builds"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
