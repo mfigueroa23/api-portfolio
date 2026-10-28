@@ -22,7 +22,7 @@
 
 ## Phase 2 — Findings without a fix
 
-- [ ] **T03 — Add the CVE-2025-60876 exception**
+- [x] **T03 — Add the CVE-2025-60876 exception**
   - **RF:** RF-06, RF-07
   - **Depends on:** — (can run in parallel with T01, T02)
   - **Scope:** One entry in `.github/sca-exceptions.json`: `id` `CVE-2025-60876`, the reason of D4 (busybox `wget` only in the HEALTHCHECK against `127.0.0.1`, no Alpine fix, Spec 007) and `expires` `2027-01-26`. A minimal Grype report for E4 lives in the scratchpad, not in the repo. One `ci` commit.
