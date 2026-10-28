@@ -5,9 +5,9 @@ Backend for Marco Figueroa's portfolio (`api.figueroa-sanchez.com`): serves the 
 NestJS 12 (Express, ESM), TypeScript 6 strict, PostgreSQL through Prisma 7 (`@prisma/adapter-pg`, client generated into the gitignored `src/generated/prisma`). Shipped as a Docker image; every push to `main` deploys to Kubernetes (`release.yaml`).
 
 ## Commands
-- Install: `pnpm install` (then `cp .env.example .env` and set the database password)
+- Install: `pnpm install` (then `cp .env.example .env` and set the database password); it fails on a dependency build script not approved in `pnpm-workspace.yaml`: approve or deny it with `pnpm run approve-builds`
 - Run: `pnpm start:dev` (watch, port 3000) · `pnpm build` + `pnpm start:prod`
-- Tests: `pnpm test` (unit, `src/**/*.spec.ts`) · `pnpm test:e2e` (`test/*.e2e-spec.ts`, in-memory Prisma fake, no database) · `pnpm test:cov`
+- Tests: `pnpm test` (unit, `src/**/*.spec.ts`) · `pnpm test:e2e` (`test/*.e2e-spec.ts`, in-memory Prisma fake, no database) · `pnpm test:cov` · script tests (`scripts/*.test.mjs`): `node --test scripts/`
 - Lint: `pnpm lint` (oxlint, type-aware); types are checked by `pnpm build`
 - Format: `pnpm format` · check: `pnpm exec prettier --check "src/**/*.ts" "test/**/*.ts"`
 - New migration (after editing `prisma/schema.prisma`): `pnpm prisma migrate dev --name <change>`
@@ -35,6 +35,7 @@ NestJS 12 (Express, ESM), TypeScript 6 strict, PostgreSQL through Prisma 7 (`@pr
 
 ## When finishing any task
 - `pnpm lint`, `pnpm test`, `pnpm test:e2e` and `pnpm build` pass; run `pnpm format` on touched files.
+- `node --test scripts/` passes when `scripts/` changes.
 - New migrations are applied locally (`pnpm prisma migrate status` is up to date) and their release order is in `README.md`.
 - Update `README.md` when endpoints, environment variables or deployment change.
 - Releases: bump `version` in `package.json` (SemVer: fix → patch, feat → minor, breaking → major) in `chore(release): Bump version to vX.Y.Z`; the PR merges as `chore(release): Version X.Y.Z`.
