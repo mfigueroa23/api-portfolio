@@ -54,19 +54,19 @@ No Phase 0: every approval in the plan was granted on 2026-10-27 (D3, D13, `AGEN
 
 ## Phase 3 — Image and release
 
-- [ ] **T08 — Pin and harden the base image**
+- [x] **T08 — Pin and harden the base image**
   - **RF:** RF-11, RF-33, RF-34, RF-35
   - **Depends on:** T01
   - **Scope:** `Dockerfile`: `node:26-alpine@sha256:<current digest>` in the three stages (D10); runtime stage runs `apk upgrade --no-cache` and removes `/usr/local/lib/node_modules`, `npm` and `npx` (D13), with a comment citing Spec 006. Fix any blocking finding left in the image as in T03 (D14).
   - **Done when:** every `FROM` has a digest; a local build for `linux/amd64` and `linux/arm64` succeeds; the container started with `.env` answers `GET /` and its `HEALTHCHECK` turns healthy; `docker run --rm --entrypoint sh <image> -c 'command -v npm'` finds nothing; Grype over the image plus `sca-gate.mjs` exits 0 on both platforms.
 
-- [ ] **T09 — Scan, gate and SBOM in the release**
+- [x] **T09 — Scan, gate and SBOM in the release**
   - **RF:** RF-17, RF-33, RF-34, RF-35, RF-36, RF-37, RF-42, RF-43, RF-44
   - **Depends on:** T01, T08
   - **Scope:** `.github/workflows/release.yaml` job `package` as in the plan: `registry:3` service, Buildx on host network, build to `localhost:5000/portfolio-api:${{ github.sha }}`, Grype per platform, `sca-gate.mjs` over both reports, `upload-sarif` per platform, `Publish Image` with `imagetools create` and the digest check, Syft SPDX per platform and artifact `portfolio-api-<version>-sbom` (D8, D9); `# vX.Y.Z` comments on all pins.
   - **Done when:** E11 — Grype and `sca-gate.mjs` against an unhardened or older `node:26-alpine` image exit 1 locally, and in the YAML the gate step comes before `Publish Image`, which is the only step that pushes to Docker Hub; the `digest` output still comes from the build step and `deploy` is unchanged.
 
-- [ ] **T10 — Dependabot configuration**
+- [x] **T10 — Dependabot configuration**
   - **RF:** RF-10, RF-12, RF-13, RF-15, RF-16, RF-18
   - **Depends on:** T08
   - **Scope:** `.github/dependabot.yml` copied from web: `npm`, `github-actions`, `docker` weekly on Monday 06:00 `America/Santiago`, minor/patch groups, literal prefixes (D11), labels; no auto-merge.
