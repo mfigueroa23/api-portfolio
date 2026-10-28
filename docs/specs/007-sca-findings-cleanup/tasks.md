@@ -14,7 +14,7 @@
 
 ## Phase 1 — Fixable findings
 
-- [ ] **T02 — Refresh the lockfile with the fixed versions**
+- [x] **T02 — Refresh the lockfile with the fixed versions**
   - **RF:** RF-01, RF-02, RF-05, RF-13
   - **Depends on:** — (can run in parallel with T01, T03)
   - **Scope:** `pnpm update --no-save vitest @vitest/coverage-v8 fast-uri` (D1–D3), then `pnpm install --frozen-lockfile`. Only `pnpm-lock.yaml` changes; revert any package outside D1–D2 (plan Risks). One `build(deps)` commit.
