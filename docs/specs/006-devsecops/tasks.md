@@ -74,13 +74,13 @@ No Phase 0: every approval in the plan was granted on 2026-10-27 (D3, D13, `AGEN
 
 ## Phase 4 — Build scripts and documentation
 
-- [ ] **T11 — Build-script approval command**
+- [x] **T11 — Build-script approval command**
   - **RF:** RF-45, RF-46, RF-47
   - **Depends on:** T03
   - **Scope:** `package.json` script `"approve-builds": "pnpm approve-builds"`; comment above `allowBuilds` in `pnpm-workspace.yaml`; the three current entries stay `false` (D12).
   - **Done when:** `pnpm install --frozen-lockfile` finishes without build-script errors; `pnpm run approve-builds` starts pnpm's prompt (nothing pending, so it exits without changes).
 
-- [ ] **T12 — README and AGENTS.md**
+- [x] **T12 — README and AGENTS.md**
   - **RF:** RF-14, RF-45
   - **Depends on:** T04–T11
   - **Scope:** `README.md`: Scripts table (`pnpm run approve-builds`, `node --test scripts/`), CI/CD (`CodeQL`, `SCA`, `Dependabot Version Bump`, Dependabot, release scan gate, SBOM artifact, exceptions file) and "Release order for DevSecOps (version 6.2.0)". `AGENTS.md`: Install note, the two commands, closing checklist line for `node --test scripts/`.

@@ -158,6 +158,14 @@ env:
 psql "${DATABASE_URL%%\?*}" -v ON_ERROR_STOP=1 -f prisma/sql/initial-content.sql
 ```
 
+### Release order for DevSecOps (version 6.2.0)
+No migration. The owner prepares the repository around the merge:
+1. Install the `portfolio-version-bump` GitHub App (the one web uses) on this repository, add `BUMP_APP_ID` as an Actions variable and `BUMP_APP_PRIVATE_KEY` as an Actions secret, and create the labels `dependencies`, `npm`, `github-actions` and `docker`.
+2. When the PR is opened, disable CodeQL default setup (`gh api -X PATCH repos/mfigueroa23/api-portfolio/code-scanning/default-setup -f state=not-configured`), since advanced-setup uploads are rejected while it is on.
+3. Once `CodeQL`, `SCA` and `API Tests` pass on the PR, add the required checks `Lockfile Scan`, `Analyze (actions)` and `Analyze (javascript-typescript)` and the CodeQL code scanning rule (security alerts `high_or_higher`) to the `Production ruleset`, and enable it. It also requires signed commits and pull requests on `main`.
+4. Merge to `main`. The release scans the image before publishing it; if the new steps fail, revert the merge and the previous `release.yaml` publishes as before.
+5. Run "Check for updates" for each ecosystem in the dependency graph and check that every Dependabot PR receives its version bump.
+
 ### Release order for resume management (version 6.1.0)
 1. Run `pnpm prisma migrate deploy` against production **before** merging. The `resume` migration only creates the `resume` table (primary key `lang` with a CHECK for `en`/`es`, and a `file_id` foreign key to `file` with `ON DELETE RESTRICT`); it touches no existing rows and the current version ignores it.
 2. Merge to `main`, which releases the API. `GET /resume` answers 404 until a resume is assigned.
@@ -246,10 +254,18 @@ UPDATE cors_origin SET enabled = false, updated_at = now() WHERE origin = 'http:
 | `pnpm test:cov` | Unit tests with coverage |
 | `pnpm lint` | Lint with oxlint (type-aware) |
 | `pnpm format` | Format with Prettier |
+| `pnpm run approve-builds` | Approve or deny the build scripts of a new dependency (recorded in `allowBuilds` of `pnpm-workspace.yaml`) |
+| `node --test scripts/` | Tests of the CI scripts in `scripts/` |
 
 ## CI/CD
-- **API Tests** (`.github/workflows/test.yaml`): lint, format check, unit and e2e tests, and build on every push and on pull requests to `main`.
-- **API Release** (`.github/workflows/release.yaml`): on push to `main`, verifies the code, builds a multi-platform Docker image (`linux/amd64`, `linux/arm64`), pushes it to Docker Hub and rolls it out to Kubernetes.
+- **API Tests** (`.github/workflows/test.yaml`): lint, format check, unit, e2e and script tests, and build on every push and on pull requests to `main`. An install fails on a dependency build script that is not approved in `pnpm-workspace.yaml`.
+- **CodeQL** (`.github/workflows/codeql.yaml`): `security-extended` analysis of `actions` and `javascript-typescript` on pull requests, on pushes to `main` and daily. A new high or critical alert blocks the PR through the `main` ruleset.
+- **SCA** (`.github/workflows/sca.yaml`): Grype scan of `pnpm-lock.yaml` on pull requests and daily. A critical or high finding with a fixed version fails the `Lockfile Scan` check; the rest are reported in the job summary and in the Security tab.
+- **API Release** (`.github/workflows/release.yaml`): on push to `main`, verifies the code and builds a multi-platform Docker image (`linux/amd64`, `linux/arm64`) into a registry local to the job. Both platforms are scanned with the same rule as the lockfile, and only then is the image copied to Docker Hub (`latest`, the version and `sha-<commit>`, with the scanned digest) and rolled out to Kubernetes by digest. A blocking finding stops the release before anything is published. Each release keeps an SPDX SBOM per platform as the `portfolio-api-<version>-sbom` artifact.
+- **Dependabot** (`.github/dependabot.yml`): weekly npm, GitHub Actions and Docker base-image updates, minor and patch grouped per ecosystem and majors apart, plus immediate security updates for npm and Actions. Nothing merges on its own.
+- **Dependabot Version Bump** (`.github/workflows/dependabot-bump.yaml`): adds one signed `chore(release): Bump version to vX.Y.Z` commit (`main`'s version plus one patch) to every Dependabot PR, and updates it when `main`'s version changes.
+
+Findings that cannot be fixed yet are excepted in `.github/sca-exceptions.json`, one entry per advisory: `{ "id": "GHSA-…", "reason": "…", "expires": "YYYY-MM-DD" }`. An expired entry no longer covers its finding, and an incomplete one fails the check.
 
 ## Contributing
 Read [`AGENTS.md`](AGENTS.md) and [`docs/constitution.md`](docs/constitution.md) first. New features start from a spec in `docs/specs/NNN-*/spec.md`, and commits follow [Conventional Commits](https://www.conventionalcommits.org).
